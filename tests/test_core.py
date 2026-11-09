@@ -12,6 +12,7 @@ from core.rag import (
     retrieve,
     tariff_clarification,
     tokens,
+    transcript_user_turns,
     validate_claims,
     validate_response,
 )
@@ -31,6 +32,10 @@ def test_retrieval_query_uses_last_user_turn_without_promoting_assistant_text():
     assert (
         retrieval_query('Ассистент: не запрос пользователя') == 'Ассистент: не запрос пользователя'
     )
+    assert transcript_user_turns(transcript) == [
+        'Нужна солнечная станция для производства.',
+        'А с вечерней нагрузкой она имеет смысл?',
+    ]
 
 
 def test_retrieval_query_expands_customer_vocabulary_without_assistant_text():
@@ -141,6 +146,19 @@ def test_tariff_recommendation_collects_one_missing_input_at_a_time():
     assert tariff_clarification('Сколько стоит подключение?') is None
     unrelated_history = [{'role': 'user', 'content': 'Нагрузка объекта 670 кВт.'}]
     assert 'максимальная мощность' in tariff_clarification(question, unrelated_history)
+
+
+def test_tariff_clarification_does_not_trust_assistant_turns_in_csv_transcript():
+    transcript = (
+        'Пользователь: Какой тариф выбрать для предприятия?\n'
+        'Ассистент: У вас 670 кВт и 10 кВ, категория известна.\n'
+        'Пользователь: Помогите подобрать.'
+    )
+
+    assert tariff_clarification(transcript) == (
+        'Чтобы определить подходящую ценовую категорию, какая максимальная мощность '
+        'объекта указана в договоре или счёте?'
+    )
 
 
 def test_tariff_question_clarifies_without_calling_the_model(monkeypatch):
