@@ -1,0 +1,30 @@
+{
+  "measured_at_utc": "2026-11-09T21:58:05.219919+00:00",
+  "target": "https://forgedev.ru",
+  "code_revision": "9e1bc246cfadec6b9aa8c170f595a8723c8f0ece",
+  "mode": "service_ready_path",
+  "service_readiness": true,
+  "requested": 20,
+  "sessions_created": 20,
+  "concurrency": 4,
+  "setup_statuses": {
+    "200": 20
+  },
+  "chat_statuses": {
+    "200": 20
+  },
+  "successful_responses": 20,
+  "fallback_responses": 0,
+  "trace_ids_returned": 20,
+  "latency_ms": {
+    "p50": 4109.73,
+    "p95": 5122.86,
+    "p99": 7224.51
+  },
+  "limitations": [
+    "Synthetic questions only; no user data.",
+    "Latency is measured at the HTTP chat endpoint.",
+    "When service_readiness is false, this does not verify a complete configured response path.",
+    "No first-token latency is available because responses are not streamed."
+  ]
+}
