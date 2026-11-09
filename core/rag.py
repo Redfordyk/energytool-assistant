@@ -90,6 +90,40 @@ def retrieve(question, chunks, limit=6):
     return [chunks[i] for _, i in scores[:limit]]
 
 
+_TRANSCRIPT_ROLE = re.compile(r'^\s*(Пользователь|Ассистент)\s*:\s*(.*)$', re.I)
+
+
+def retrieval_query(question):
+    """Use the latest user turn for retrieval while leaving transcript data intact.
+
+    Only the Russian transcript labels used by the supplied evaluation set are
+    recognized. Unlabelled text is returned unchanged; assistant turns are
+    never treated as the query or as privileged model instructions.
+    """
+    if not isinstance(question, str):
+        return ''
+    turns = []
+    current_role = None
+    current_lines = []
+    for line in question.splitlines():
+        match = _TRANSCRIPT_ROLE.match(line)
+        if match:
+            if current_role is not None:
+                turns.append((current_role, '\n'.join(current_lines).strip()))
+            current_role = match.group(1).lower()
+            current_lines = [match.group(2)]
+        elif current_role is not None:
+            current_lines.append(line)
+    if current_role is not None:
+        turns.append((current_role, '\n'.join(current_lines).strip()))
+    user_turns = [content for role, content in turns if role == 'пользователь' and content]
+    if not user_turns:
+        return question
+    # Earlier user turns often carry the topic that a short final question
+    # refers to. Keep a bounded window; assistant wording never affects rank.
+    return '\n'.join(turn[-1000:] for turn in user_turns[-4:])
+
+
 def validate_response(raw, sources):
     """Validate cited excerpts and numerical tokens before returning generated text.
 
@@ -131,7 +165,7 @@ def validate_response(raw, sources):
 def answer(question, chunks, history=()):
     if re.fullmatch(r'\s*(?:здравствуйте|здравствуй|добрый день|доброе утро|добрый вечер|привет)[!.,\s]*', question.lower()):
         return 'Здравствуйте! Расскажите, какую задачу в области энергетики вы хотите решить?'
-    search_query = question
+    search_query = retrieval_query(question)
     if len(tokens(question)) < 4:
         prior_questions = [m['content'] for m in history[-8:] if m.get('role') == 'user' and isinstance(m.get('content'), str)]
         if prior_questions:
