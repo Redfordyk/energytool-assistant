@@ -64,6 +64,23 @@ def test_answer_survives_optional_retrieval_failures_with_verified_quote(monkeyp
     assert gateway.chat_calls == 2
 
 
+def test_answer_binds_server_evidence_when_model_returns_source_only(monkeypatch, gateway_env):
+    source_text = 'Срок поставки составляет 10 дней при согласовании.'
+    response = json.dumps({'claims': [{
+        'text': 'Срок поставки — 10 дней при согласовании.',
+        'source': 1,
+    }]}, ensure_ascii=False)
+    gateway = ModelGatewayStub(response, '{"supported":[true]}')
+    install_gateway(monkeypatch, gateway)
+
+    result = answer('срок поставки', [Chunk('terms.md', source_text)])
+
+    verifier = [body for url, body in gateway.calls if url.endswith('/chat/completions')][1]
+    evidence = json.loads(verifier['messages'][1]['content'])
+    assert result == 'Срок поставки — 10 дней при согласовании.'
+    assert evidence == [{'claim': 'Срок поставки — 10 дней при согласовании.', 'quote': source_text}]
+
+
 def test_json_mode_is_sent_to_generation_and_verifier_when_enabled(monkeypatch, gateway_env):
     monkeypatch.setenv('LLM_JSON_MODE', 'true')
     response = json.dumps({'claims': [{
