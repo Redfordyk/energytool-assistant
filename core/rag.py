@@ -8,6 +8,7 @@ import time
 import zipfile
 from collections import Counter
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
 
@@ -237,6 +238,56 @@ def tariff_clarification(question, history=()):
     return None
 
 
+_QUANTIFIED_VALUE = re.compile(
+    r'(?<!\w)(?P<number>\d+(?:[.,]\d+)?)\s*'
+    r'(?P<unit>%|процент(?:а|ов)?|₽|руб(?:ль|ля|лей)?|'
+    r'мвт(?:[·⋅]?\s*ч)|квт(?:[·⋅]?\s*ч)|мвт|квт|мва|ква|'
+    r'киловольт|кв|день|дня|дней|сутки|суток|'
+    r'год|года|лет|месяц|месяца|месяцев|час|часа|часов)?', re.I)
+_UNIT_CANONICAL = {
+    '%': '%', 'процент': '%', 'процента': '%', 'процентов': '%',
+    '₽': 'руб.', 'руб': 'руб.', 'рубль': 'руб.', 'рубля': 'руб.', 'рублей': 'руб.',
+    'квтч': 'квтч', 'мвтч': 'мвтч',
+    'квт': 'квт', 'мвт': 'мвт', 'ква': 'ква', 'мва': 'мва',
+    'кв': 'кв', 'киловольт': 'кв',
+    'день': 'день', 'дня': 'день', 'дней': 'день', 'сутки': 'день', 'суток': 'день',
+    'год': 'год', 'года': 'год', 'лет': 'год',
+    'месяц': 'месяц', 'месяца': 'месяц', 'месяцев': 'месяц',
+    'час': 'час', 'часа': 'час', 'часов': 'час',
+}
+
+
+def _number_key(value):
+    try:
+        return Decimal(value.replace(',', '.')).normalize()
+    except InvalidOperation:
+        return value
+
+
+def _quantified_values(text):
+    values = []
+    for match in _QUANTIFIED_VALUE.finditer(text):
+        unit = match.group('unit')
+        values.append((_number_key(match.group('number')),
+                       _UNIT_CANONICAL.get(unit.lower().replace(' ', '').replace('·', '').replace('⋅', ''), None)
+                       if unit else None))
+    return values
+
+
+def _quantities_supported(claim, evidence):
+    claim_values, evidence_values = _quantified_values(claim), _quantified_values(evidence)
+    for number, unit in claim_values:
+        matches = [(evidence_number, evidence_unit) for evidence_number, evidence_unit in evidence_values
+                   if evidence_number == number]
+        if not matches:
+            return False
+        if unit is not None and (number, unit) not in evidence_values:
+            return False
+        if unit is None and any(evidence_unit is not None for _, evidence_unit in matches):
+            return False
+    return True
+
+
 def validate_claims(raw, sources):
     """Validate claim structure and bind each claim to a retrieved chunk.
 
@@ -250,7 +301,7 @@ def validate_claims(raw, sources):
         if not isinstance(data, dict) or set(data) != {'claims'}:
             return None
         claims = data['claims']
-        if not isinstance(claims, list) or not 1 <= len(claims) <= 6:
+        if not isinstance(claims, list) or not 1 <= len(claims) <= 2:
             return None
         validated = []
         for claim in claims:
@@ -269,9 +320,7 @@ def validate_claims(raw, sources):
             else:
                 # Bind evidence on the server instead of trusting a generated citation.
                 quote = evidence
-            numbers = re.findall(r'\d+(?:[.,]\d+)?', text)
-            evidence_numbers = re.findall(r'\d+(?:[.,]\d+)?', quote)
-            if any(number not in evidence_numbers for number in numbers):
+            if not _quantities_supported(text, quote):
                 return None
             validated.append({'text': ' '.join(text.split()), 'source': source, 'quote': quote})
         return validated if sum(len(claim['text'].split()) for claim in validated) <= 150 else None
