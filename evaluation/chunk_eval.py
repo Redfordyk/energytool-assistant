@@ -24,24 +24,39 @@ def _resolve_annotations(gold, chunks):
     resolved = {}
     errors = []
     for question_id, annotations in gold.items():
+        if not isinstance(annotations, list) or not annotations:
+            errors.append(f'{question_id}: evidence annotations must be a non-empty list')
+            continue
         targets = []
         for annotation_index, annotation in enumerate(annotations):
-            source = annotation.get('source', '')
-            evidence = _normalized(annotation.get('contains', ''))
-            if not source or not evidence:
+            if not isinstance(annotation, dict):
+                errors.append(f'{question_id}[{annotation_index}]: annotation must be an object')
+                continue
+            alternatives = annotation.get('alternatives', [annotation])
+            if not isinstance(alternatives, list) or not alternatives:
                 errors.append(
-                    f'{question_id}[{annotation_index}]: source and contains are required'
+                    f'{question_id}[{annotation_index}]: alternatives must be a non-empty list'
                 )
                 continue
-            matches = {
-                index
-                for index, chunk in enumerate(chunks)
-                if chunk.source == source and evidence in _normalized(chunk.text)
-            }
-            if not matches:
-                errors.append(
-                    f'{question_id}[{annotation_index}]: evidence anchor not found in {source}'
-                )
+            matches = set()
+            for alternative_index, alternative in enumerate(alternatives):
+                location = f'{question_id}[{annotation_index}].alternatives[{alternative_index}]'
+                if not isinstance(alternative, dict):
+                    errors.append(f'{location}: anchor must be an object')
+                    continue
+                source = alternative.get('source', '')
+                evidence = _normalized(alternative.get('contains', ''))
+                if not source or not evidence:
+                    errors.append(f'{location}: source and contains are required')
+                    continue
+                anchor_matches = {
+                    index
+                    for index, chunk in enumerate(chunks)
+                    if chunk.source == source and evidence in _normalized(chunk.text)
+                }
+                if not anchor_matches:
+                    errors.append(f'{location}: evidence anchor not found in {source}')
+                matches.update(anchor_matches)
             targets.append(matches)
         if any(targets):
             resolved[str(question_id)] = targets
