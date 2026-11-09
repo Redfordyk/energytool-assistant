@@ -147,6 +147,8 @@ def test_answer_verifies_user_measurement_against_a_knowledge_threshold(monkeypa
     ]
     assert question not in verifier['messages'][1]['content']
     assert 'user_context_quantities' in verifier['messages'][0]['content']
+    assert 'не требуй дословного совпадения' in verifier['messages'][0]['content']
+    assert 'каждая существенная часть' in verifier['messages'][0]['content']
 
 
 def test_user_number_does_not_make_unsupported_product_claim_valid(monkeypatch, gateway_env):
@@ -179,6 +181,7 @@ def test_user_number_does_not_make_unsupported_product_claim_valid(monkeypatch, 
     assert diagnostic['fallback_reason'] == 'claim_verification_failed'
     assert verification_input[0]['user_context_quantities'] == [{'number': '90', 'unit': '%'}]
     assert 'не подтверждают свойства продукта' in verifier['messages'][0]['content']
+    assert 'Если существенная часть не подтверждается' in verifier['messages'][0]['content']
 
 
 def test_json_mode_is_sent_to_generation_and_verifier_when_enabled(monkeypatch, gateway_env):
