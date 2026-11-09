@@ -115,3 +115,12 @@ greeting, observed `DISCOVERY`, and closed the session; the deterministic
 greeting path did not call the external model. The release is not evidence
 that the unimplemented recommendation, live handoff, or full dialogue-state
 routing is complete.
+
+The live container configuration reports generator `deepseek-flash` and
+verifier `deepseek-v4-pro`; only boolean presence of the API key was checked,
+and no secret value was read or logged. One organizer demo question about
+east/west roof slopes returned a sourced answer; its trace recorded
+`claim_verification=true`, no fallback, and `query_plan=bm25`. This is a
+single smoke request, not an accuracy or reliability result. No embedder or
+reranker endpoint is configured on the server, so the hybrid retrieval code
+is present but the live deployment currently uses BM25 only.
