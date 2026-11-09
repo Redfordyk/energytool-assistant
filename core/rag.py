@@ -377,7 +377,7 @@ def _quantities_supported(claim, evidence):
             return False
         if unit is not None and (number, unit) not in evidence_values:
             return False
-        if unit is None and any(evidence_unit is not None for _, evidence_unit in matches):
+        if unit is None and not any(evidence_unit is None for _, evidence_unit in matches):
             return False
     return True
 

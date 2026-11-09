@@ -214,6 +214,24 @@ def test_claims_reject_altered_or_omitted_units_and_accept_equivalent_percent_fo
     assert validate_response(energy_claim, [energy]) == 'За период отпущено 100 кВт ч.'
 
 
+def test_claims_allow_dates_and_act_numbers_alongside_unit_bearing_facts():
+    source = Chunk(
+        'microgeneration.md',
+        'В 2026 году юрлица могут отдавать в сеть до 150 кВт по распоряжению '
+        'Правительства РФ от 26.09.2026 № 2675-р; ранее предел составлял 15 кВт.',
+    )
+    claim = (
+        '{"claims":[{"text":"Юрлица могут отдавать в сеть до 150 кВт по '
+        'распоряжению от 26.09.2026 № 2675-р; ранее предел составлял 15 кВт.",'
+        '"source":1}]}'
+    )
+
+    assert validate_response(claim, [source]) == (
+        'Юрлица могут отдавать в сеть до 150 кВт по распоряжению от '
+        '26.09.2026 № 2675-р; ранее предел составлял 15 кВт.'
+    )
+
+
 def test_claims_match_prompt_limit_of_two_claims():
     payload = '{"claims":[{"text":"Первый факт.","source":1},{"text":"Второй факт.","source":1},{"text":"Третий факт.","source":1}]}'
     assert validate_response(payload, [Chunk('test.md', 'Факты подтверждены.')]) is None
