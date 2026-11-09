@@ -5,6 +5,7 @@ import json
 import math
 import os
 import re
+import stat
 import time
 import zipfile
 from collections import Counter
@@ -99,12 +100,39 @@ def _load_knowledge(path, size, mtime_ns):
         infos = archive.infolist()
         if len(infos) > 1000 or sum(i.file_size for i in infos) > 50_000_000:
             raise ValueError('Knowledge archive exceeds limits')
+        names = set()
+        document_count = 0
         for info in sorted(infos, key=lambda i: i.filename):
-            if not info.filename.lower().endswith(('.md', '.txt')) or info.is_dir():
+            name = info.filename.replace('\\', '/')
+            parts = name.rstrip('/').split('/')
+            if (
+                not name
+                or name.startswith('/')
+                or any(part in ('', '.', '..') for part in parts)
+                or re.match(r'^[a-z]:', parts[0], re.IGNORECASE)
+            ):
+                raise ValueError('Knowledge archive contains an unsafe path')
+            canonical_name = '/'.join(parts).casefold()
+            if canonical_name in names:
+                raise ValueError('Knowledge archive contains duplicate paths')
+            names.add(canonical_name)
+            file_type = stat.S_IFMT(info.external_attr >> 16)
+            if file_type == stat.S_IFLNK or (
+                file_type and file_type not in (stat.S_IFDIR, stat.S_IFREG)
+            ):
+                raise ValueError('Knowledge archive contains a special file')
+            if info.flag_bits & 0x1:
+                raise ValueError('Encrypted knowledge documents are not supported')
+            if info.is_dir():
                 continue
+            if not name.lower().endswith(('.md', '.txt')):
+                raise ValueError('Knowledge archive contains an unsupported file type')
             if info.file_size > 2_000_000:
                 raise ValueError('Knowledge document exceeds limits')
             text = archive.read(info).decode('utf-8-sig')
+            if not text.strip():
+                raise ValueError('Knowledge archive contains an empty document')
+            document_count += 1
             # Preserve headings and split long sections into overlapping windows.
             sections = re.split(r'(?=^#{1,4}\s)', text, flags=re.MULTILINE)
             for section in sections:
@@ -115,7 +143,7 @@ def _load_knowledge(path, size, mtime_ns):
                     piece = section[max(0, start - (150 if start else 0)) : start + 1000].strip()
                     if piece:
                         chunks.append(Chunk(info.filename, piece))
-    if not chunks:
+    if not document_count or not chunks:
         raise ValueError('Knowledge archive has no text documents')
     return tuple(chunks)
 

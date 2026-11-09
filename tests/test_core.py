@@ -1,5 +1,7 @@
 import zipfile
 
+import pytest
+
 from core.rag import (
     FALLBACK,
     Chunk,
@@ -175,6 +177,45 @@ def test_archive_size_limit(tmp_path):
     import pytest
 
     with pytest.raises(ValueError):
+        load_knowledge(archive)
+
+
+@pytest.mark.parametrize(
+    ('filename', 'content'),
+    [
+        ('../outside.md', '# Содержимое'),
+        ('unsupported.pdf', 'необработанный документ'),
+        ('empty.md', '   \n'),
+    ],
+)
+def test_knowledge_archive_rejects_unsafe_or_unprocessed_documents(tmp_path, filename, content):
+    archive = tmp_path / 'invalid.zip'
+    with zipfile.ZipFile(archive, 'w') as zipped:
+        zipped.writestr(filename, content)
+
+    with pytest.raises(ValueError):
+        load_knowledge(archive)
+
+
+def test_knowledge_archive_rejects_duplicate_paths_case_insensitively(tmp_path):
+    archive = tmp_path / 'duplicate.zip'
+    with zipfile.ZipFile(archive, 'w') as zipped:
+        zipped.writestr('product.md', '# Первый документ')
+        zipped.writestr('PRODUCT.MD', '# Второй документ')
+
+    with pytest.raises(ValueError, match='duplicate paths'):
+        load_knowledge(archive)
+
+
+def test_knowledge_archive_rejects_symbolic_link_entries(tmp_path):
+    archive = tmp_path / 'symlink.zip'
+    link = zipfile.ZipInfo('link.md')
+    link.create_system = 3
+    link.external_attr = (0o120777 << 16) | 0xA000
+    with zipfile.ZipFile(archive, 'w') as zipped:
+        zipped.writestr(link, 'target.md')
+
+    with pytest.raises(ValueError, match='special file'):
         load_knowledge(archive)
 
 
