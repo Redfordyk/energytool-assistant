@@ -31,6 +31,7 @@ session_states = Table(
     Column('session_id', String(64), ForeignKey('sessions.id'), primary_key=True),
     Column('version', Integer, nullable=False, default=0),
     Column('closed', Boolean, nullable=False, default=False),
+    Column('state', String(32), nullable=False, default='NEW', server_default='NEW'),
 )
 message_requests = Table(
     'message_requests',
@@ -80,6 +81,13 @@ lead_drafts = Table(
     Column('knowledge_revision', String(64)),
     Column('confirmation_hash', String(64), nullable=False),
     Column('expires_at', Integer, nullable=False),
+    Column(
+        'return_state',
+        String(32),
+        nullable=False,
+        default='CONSULTING',
+        server_default='CONSULTING',
+    ),
     Column('lead_id', Integer, ForeignKey('leads.id')),
 )
 lead_contexts = Table(
@@ -125,6 +133,8 @@ traces = Table(
     Column('query_plan', String(80), nullable=False),
     Column('state_before', Integer, nullable=False),
     Column('state_after', Integer, nullable=False),
+    Column('dialogue_state_before', String(32), nullable=False, default='NEW'),
+    Column('dialogue_state_after', String(32), nullable=False, default='CONSULTING'),
     Column('retrieval_top_k', Integer, nullable=False),
     Column('reranker', String(16), nullable=False),
     Column('evidence_ids', Text, nullable=False),
