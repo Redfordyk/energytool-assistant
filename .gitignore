@@ -1,0 +1,8 @@
+.env
+data/
+*.db
+*.zip
+__pycache__/
+.pytest_cache/
+submission.csv
+.venv/
