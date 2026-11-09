@@ -6,17 +6,12 @@ import math
 from collections import Counter
 from pathlib import Path
 
-from core.rag import RETRIEVAL_CONFIG, STOP_WORDS, TOKEN, load_knowledge, retrieve, retrieval_query
+from core.rag import RETRIEVAL_CONFIG, load_knowledge, retrieve, retrieval_query, tokens
 
 
 WIDTHS = (3, 4, 5, 6)
 K1_VALUES = (0.7, 1.2, 2.0)
 B_VALUES = (0.25, 0.75, 1.0)
-
-
-def _tokenize(text, width):
-    return [word[:width] for word in TOKEN.findall(text.lower().replace('ё', 'е'))
-            if len(word) >= 3 and word[:width] not in STOP_WORDS]
 
 
 def _reciprocal_rank(rank):
@@ -47,11 +42,11 @@ def evaluate(questions_path, knowledge_path, gold_path):
     parameters = [(width, k1, b) for width in WIDTHS for k1 in K1_VALUES for b in B_VALUES]
     ranks = {}
     for width in WIDTHS:
-        documents = [Counter(_tokenize(chunk.source + ' ' + chunk.text, width)) for chunk in chunks]
+        documents = [Counter(tokens(chunk.source + ' ' + chunk.text, width)) for chunk in chunks]
         document_frequency = Counter(token for document in documents for token in document)
         lengths = [sum(document.values()) for document in documents]
         average_length = sum(lengths) / len(lengths) or 1
-        query_tokens = {row['id']: set(_tokenize(row['query'], width)) for row in rows}
+        query_tokens = {row['id']: set(tokens(row['query'], width)) for row in rows}
         for k1 in K1_VALUES:
             for b in B_VALUES:
                 for row in rows:
