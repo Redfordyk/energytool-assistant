@@ -4,6 +4,7 @@ import re
 import secrets
 import sqlite3
 import threading
+import zipfile
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
@@ -93,7 +94,7 @@ def chat(session_id: str, message: Message, authorization: str = Header(default=
         path = Path(os.getenv('DATA_DIR', 'data')) / 'knowledge-base.zip'
         try:
             result = answer(text, load_knowledge(path), previous)
-        except (OSError, ValueError):
+        except (OSError, ValueError, zipfile.BadZipFile):
             from core.rag import FALLBACK
             result = FALLBACK
         with connect() as db:
