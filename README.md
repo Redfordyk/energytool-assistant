@@ -6,6 +6,8 @@
 
 Пользовательский интерфейс: https://forgedev.ru. Краткий обзор архитектуры, сценария проверки ответа, управления базой знаний и ограничений демо: [PDF-презентация](output/pdf/MTS-Energytool-demo.pdf).
 
+Дизайн-токены, компоненты и правила responsive/accessibility: [docs/design-system.md](docs/design-system.md). Общие CSS-токены находятся в `app/static/tokens.css`; стили чата и админки — в `app/static/index.css` и `app/static/admin.css`.
+
 ## Запуск
 
 Скопируйте `.env.example` в `.env`. Шаблон настроен на DeepSeek (`https://api.deepseek.com`, `deepseek-flash`): добавьте свой ключ в `LLM_API_KEY`. Задайте длинные случайные разные значения `POSTGRES_PASSWORD`, `ADMIN_TOKEN`, `REVIEWER_TOKEN` и `RATE_LIMIT_SALT`. Для пароля PostgreSQL в Compose используйте буквы и цифры: специальные символы в URL соединения требуют отдельного кодирования. Создайте каталог `data` и положите в него предоставленный архив `knowledge-base.zip`. Запустите `docker compose up --build` и откройте http://localhost:8000. Сначала зарегистрируйте, утвердите и активируйте БЗ по инструкции ниже. Без настроенного API или активной БЗ возвращается безопасный ответ. Используйте только вымышленные контакты: заявки сохраняются в PostgreSQL и не отправляются.
