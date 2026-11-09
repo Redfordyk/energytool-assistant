@@ -73,8 +73,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .message-user .message-bubble { border-color: #ffdcdf; border-radius: 18px 4px 18px 18px; background: #fff2f3; }
 .avatar { width: 32px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; margin-top: 3px; border-radius: 50%; color: white; font-size: 11px; font-weight: 750; }
 .avatar-ai { background: var(--red); box-shadow: 0 2px 5px rgb(227 6 17 / 18%); }
-.message-bubble { max-width: min(88%, 590px); padding: 14px 16px; border: 1px solid #eceef2; border-radius: 4px 18px 18px 18px; background: #f8f9fb; font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
-.message-bubble p { margin: 0; }
+.message-bubble { max-width: min(88%, 590px); padding: 14px 16px; border: 1px solid #eceef2; border-radius: 4px 18px 18px 18px; background: #f8f9fb; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.message-bubble p { margin: 0; white-space: pre-wrap; }
 .message-author { display: block; margin-bottom: 3px; color: var(--red); font-size: 10px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
 .message-user .message-author { color: #8f1119; text-align: right; }
 .quick-topics { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-top: 12px; border-top: 1px solid #edf0f4; }
