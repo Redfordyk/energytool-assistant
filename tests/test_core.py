@@ -1,6 +1,6 @@
 import zipfile
 
-from core.rag import FALLBACK, Chunk, answer, load_knowledge, retrieve, retrieval_query, validate_response
+from core.rag import FALLBACK, Chunk, answer, load_knowledge, retrieve, retrieval_query, validate_claims, validate_response
 
 
 def test_retrieval_query_uses_last_user_turn_without_promoting_assistant_text():
@@ -48,6 +48,20 @@ def test_claims_require_real_quotes_and_matching_numbers():
     assert validate_response(valid.replace('"source":1', '"source":2'), sources) is None
     assert validate_response(valid.replace('составляет 10 дней', 'составляет 11 дней'), sources) is None
     assert validate_response('{"claims":[]}', sources) is None
+
+
+def test_source_only_claims_bind_to_server_evidence_and_reject_null_quotes():
+    sources = [Chunk('test.md', 'Срок поставки составляет 10 дней при согласовании.')]
+    payload = '{"claims":[{"text":"Срок — 10 дней при согласовании.","source":1}]}'
+    claims = validate_claims(payload, sources)
+    assert claims == [{
+        'text': 'Срок — 10 дней при согласовании.',
+        'source': 1,
+        'quote': sources[0].text,
+    }]
+    assert validate_claims(payload.replace('10 дней', '11 дней'), sources) is None
+    assert validate_claims(payload.replace('"source":1', '"source":true'), sources) is None
+    assert validate_claims(payload.replace('"source":1', '"source":1,"quote":null'), sources) is None
 
 
 def test_model_response_is_checked(monkeypatch):
