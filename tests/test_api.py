@@ -10,7 +10,10 @@ from app.database import (
     messages,
     metadata,
     sessions,
+    traces,
 )
+from app.dialogue import DialogueState
+from core.rag import Chunk
 
 
 def test_sessions_and_lead_confirmation(tmp_path, monkeypatch):
@@ -19,6 +22,7 @@ def test_sessions_and_lead_confirmation(tmp_path, monkeypatch):
     monkeypatch.setattr(main, 'engine', engine)
     client = TestClient(main.app)
     session = client.post('/api/sessions').json()
+    assert session['state'] == DialogueState.NEW.value
     url = '/api/sessions/' + session['id']
     auth = {'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': '12345678'}
     assert client.get(url + '/messages').status_code == 404
@@ -31,10 +35,21 @@ def test_sessions_and_lead_confirmation(tmp_path, monkeypatch):
         ).status_code
         == 200
     )
+    assert client.get(url, headers=auth).json()['state'] == DialogueState.CONSULTING.value
+    trace_id = client.post(
+        url + '/messages',
+        headers=chat_auth,
+        json={'text': 'Ищем снижение затрат', 'session_version': 0},
+    ).json()['trace_id']
+    with engine.connect() as db:
+        trace = db.execute(select(traces).where(traces.c.trace_id == trace_id)).one()
+    assert trace.dialogue_state_before == DialogueState.NEW.value
+    assert trace.dialogue_state_after == DialogueState.CONSULTING.value
     payload = {'name': 'Иван Иванов', 'phone': '8 999 123-45-67', 'company': 'Тест'}
     fake_confirmation = {'confirmation_token': 'x' * 32, 'consent': True}
     assert client.post(url + '/leads', headers=auth, json=fake_confirmation).status_code == 409
     prepared = client.post(url + '/lead-drafts', headers=auth, json=payload).json()
+    assert client.get(url, headers=auth).json()['state'] == DialogueState.LEAD_REVIEW.value
     assert prepared['phone'] == '+79991234567'
     assert 'Ищем снижение затрат' in prepared['summary']
     confirmation = {'confirmation_token': prepared['confirmation_token'], 'consent': False}
@@ -50,6 +65,7 @@ def test_sessions_and_lead_confirmation(tmp_path, monkeypatch):
     confirmation['consent'] = True
     first = client.post(url + '/leads', headers=auth, json=confirmation)
     assert first.status_code == 200
+    assert client.get(url, headers=auth).json()['state'] == DialogueState.LEAD_CREATED.value
     assert client.post(url + '/leads', headers=auth, json=confirmation).json() == first.json()
     with engine.connect() as db:
         assert len(db.execute(select(lead_consents)).all()) == 1
@@ -78,6 +94,7 @@ def test_message_retries_version_conflicts_and_close(tmp_path, monkeypatch):
     payload = {'text': 'Здравствуйте', 'session_version': 0}
     first = client.post(url + '/messages', headers=headers, json=payload)
     assert first.status_code == 200 and first.json()['version'] == 1
+    assert client.get(url, headers=headers).json()['state'] == DialogueState.DISCOVERY.value
     assert client.post(url + '/messages', headers=headers, json=payload).json() == first.json()
     assert (
         client.post(
@@ -96,6 +113,7 @@ def test_message_retries_version_conflicts_and_close(tmp_path, monkeypatch):
     assert len(second_page) == 1 and second_page[0]['role'] == 'assistant'
     assert client.post(url + '/close', headers=headers).status_code == 200
     assert client.post(url + '/close', headers=headers).status_code == 200
+    assert client.get(url, headers=headers).json()['state'] == DialogueState.CLOSED.value
     assert (
         client.post(
             url + '/messages', headers=other_headers, json={'text': 'Вопрос', 'session_version': 2}
@@ -147,6 +165,7 @@ def test_edited_draft_invalidates_old_confirmation(tmp_path, monkeypatch):
     headers = {'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': '12345678'}
     fields = {'name': 'Иван Иванов', 'phone': '+79991234567', 'company': 'Первая'}
     old = client.post(url + '/lead-drafts', headers=headers, json=fields).json()
+    assert client.get(url, headers=headers).json()['state'] == DialogueState.LEAD_REVIEW.value
     fields['company'] = 'Другая'
     new = client.post(url + '/lead-drafts', headers=headers, json=fields).json()
     assert (
@@ -165,6 +184,7 @@ def test_edited_draft_invalidates_old_confirmation(tmp_path, monkeypatch):
         ).status_code
         == 200
     )
+    assert client.get(url, headers=headers).json()['state'] == DialogueState.LEAD_CREATED.value
 
 
 def test_cancel_draft_prevents_confirmation(tmp_path, monkeypatch):
@@ -181,6 +201,7 @@ def test_cancel_draft_prevents_confirmation(tmp_path, monkeypatch):
         json={'name': 'Тест Тест', 'phone': '+79991234567', 'company': 'Пример'},
     ).json()
     assert client.delete(url + '/lead-drafts', headers=headers).status_code == 200
+    assert client.get(url, headers=headers).json()['state'] == DialogueState.NEW.value
     assert (
         client.post(
             url + '/leads',
@@ -188,6 +209,74 @@ def test_cancel_draft_prevents_confirmation(tmp_path, monkeypatch):
             json={'confirmation_token': prepared['confirmation_token'], 'consent': True},
         ).status_code
         == 409
+    )
+
+
+def test_new_message_invalidates_pending_lead_preview(tmp_path, monkeypatch):
+    engine = make_engine('sqlite:///' + str(tmp_path / 'stale-draft.db'))
+    metadata.create_all(engine)
+    monkeypatch.setattr(main, 'engine', engine)
+    client = TestClient(main.app)
+    session = client.post('/api/sessions').json()
+    url = '/api/sessions/' + session['id']
+    lead_headers = {
+        'Authorization': 'Bearer ' + session['token'],
+        'Idempotency-Key': 'draft-key-0001',
+    }
+    prepared = client.post(
+        url + '/lead-drafts',
+        headers=lead_headers,
+        json={'name': 'Тест Тест', 'phone': '+79991234567', 'company': 'Пример'},
+    ).json()
+    assert client.get(url, headers=lead_headers).json()['state'] == DialogueState.LEAD_REVIEW.value
+
+    chat_response = client.post(
+        url + '/messages',
+        headers={
+            'Authorization': 'Bearer ' + session['token'],
+            'Idempotency-Key': 'message-key-0001',
+        },
+        json={'text': 'Уточню описание задачи', 'session_version': 0},
+    )
+    assert chat_response.status_code == 200
+    assert client.get(url, headers=lead_headers).json()['state'] == DialogueState.CONSULTING.value
+    assert (
+        client.post(
+            url + '/leads',
+            headers=lead_headers,
+            json={'confirmation_token': prepared['confirmation_token'], 'consent': True},
+        ).status_code
+        == 409
+    )
+
+
+def test_tariff_clarification_persists_clarifying_state(tmp_path, monkeypatch):
+    engine = make_engine('sqlite:///' + str(tmp_path / 'clarifying.db'))
+    metadata.create_all(engine)
+    monkeypatch.setattr(main, 'engine', engine)
+    monkeypatch.setattr(
+        main,
+        'active_knowledge_snapshot',
+        lambda _engine: ('test-revision', (Chunk('tariffs.md', 'Тарифы для предприятий.'),)),
+    )
+    client = TestClient(main.app)
+    session = client.post('/api/sessions').json()
+    response = client.post(
+        '/api/sessions/' + session['id'] + '/messages',
+        headers={
+            'Authorization': 'Bearer ' + session['token'],
+            'Idempotency-Key': 'clarify-key-0001',
+        },
+        json={'text': 'Какой тариф выбрать для предприятия?', 'session_version': 0},
+    )
+
+    assert response.status_code == 200
+    assert (
+        client.get(
+            '/api/sessions/' + session['id'],
+            headers={'Authorization': 'Bearer ' + session['token']},
+        ).json()['state']
+        == DialogueState.CLARIFYING.value
     )
 
 
@@ -222,5 +311,8 @@ def test_draft_expiry_and_session_isolation(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(lead_service.time, 'time', lambda: 2000)
     assert client.post(url(first) + '/leads', headers=auth(first), json=confirm).status_code == 409
+    assert client.get(url(first), headers=auth(first)).json()['state'] == DialogueState.NEW.value
+    assert lead_service.cleanup_expired_drafts(engine, now=2000) == 1
+    assert client.get(url(first), headers=auth(first)).json()['state'] == DialogueState.NEW.value
     with engine.connect() as db:
         assert db.execute(select(leads)).first() is None

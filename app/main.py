@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool, StrictInt
-from sqlalchemy import func, insert, select, text, update
+from sqlalchemy import delete, func, insert, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import SQLAlchemyError
@@ -21,6 +21,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.database import (
     audit,
     knowledge,
+    lead_drafts,
     make_engine,
     message_requests,
     messages,
@@ -28,6 +29,7 @@ from app.database import (
     sessions,
     traces,
 )
+from app.dialogue import DialogueState, state_after_answer
 from app.governance import (
     active_knowledge,
     active_knowledge_snapshot,
@@ -156,8 +158,15 @@ def create_session():
                 id=session_id, token_hash=hashlib.sha256(token.encode()).hexdigest()
             )
         )
-        db.execute(insert(session_states).values(session_id=session_id, version=0, closed=False))
-    return {'id': session_id, 'token': token, 'version': 0}
+        db.execute(
+            insert(session_states).values(
+                session_id=session_id,
+                version=0,
+                closed=False,
+                state=DialogueState.NEW.value,
+            )
+        )
+    return {'id': session_id, 'token': token, 'version': 0, 'state': DialogueState.NEW.value}
 
 
 def ensure_state(db, session_id):
@@ -175,7 +184,12 @@ def ensure_state(db, session_id):
     dialect_insert = pg_insert if db.dialect.name == 'postgresql' else sqlite_insert
     db.execute(
         dialect_insert(session_states)
-        .values(session_id=session_id, version=count, closed=False)
+        .values(
+            session_id=session_id,
+            version=count,
+            closed=False,
+            state=(DialogueState.CONSULTING if count else DialogueState.NEW).value,
+        )
         .on_conflict_do_nothing(index_elements=['session_id'])
     )
     return db.execute(select(session_states).where(session_states.c.session_id == session_id)).one()
@@ -207,7 +221,31 @@ def session_state(session_id: str, authorization: str = Header(default='')):
     with session_lock(session_id), engine.begin() as db:
         lock_session(db, session_id)
         state = ensure_state(db, session_id)
-        return {'id': session_id, 'version': state.version, 'closed': state.closed}
+        if state.state == DialogueState.LEAD_REVIEW.value:
+            draft = db.execute(
+                select(lead_drafts.c.return_state, lead_drafts.c.expires_at).where(
+                    lead_drafts.c.session_id == session_id,
+                    lead_drafts.c.lead_id.is_(None),
+                )
+            ).first()
+            if draft is None or draft.expires_at < int(time.time()):
+                next_state = (
+                    draft.return_state if draft is not None else DialogueState.CONSULTING.value
+                )
+                db.execute(
+                    update(session_states)
+                    .where(session_states.c.session_id == session_id)
+                    .values(state=next_state)
+                )
+                state = db.execute(
+                    select(session_states).where(session_states.c.session_id == session_id)
+                ).one()
+        return {
+            'id': session_id,
+            'version': state.version,
+            'closed': state.closed,
+            'state': state.state,
+        }
 
 
 @app.post('/api/sessions/{session_id}/close')
@@ -220,7 +258,11 @@ def close_session(session_id: str, authorization: str = Header(default='')):
             db.execute(
                 update(session_states)
                 .where(session_states.c.session_id == session_id)
-                .values(closed=True, version=state.version + 1)
+                .values(
+                    closed=True,
+                    version=state.version + 1,
+                    state=DialogueState.CLOSED.value,
+                )
             )
         return {'status': 'closed'}
 
@@ -289,6 +331,15 @@ def chat(
             knowledge_revision, chunks = active_knowledge_snapshot(engine)
             diagnostic: dict[str, object] = {}
             result = answer(question, chunks or (), previous, diagnostic)
+            new_dialogue_state = state_after_answer(diagnostic)
+            # Any new question invalidates a pending preview so consent always
+            # applies to the latest dialogue summary.
+            db.execute(
+                delete(lead_drafts).where(
+                    lead_drafts.c.session_id == session_id,
+                    lead_drafts.c.lead_id.is_(None),
+                )
+            )
             db.execute(
                 insert(messages),
                 [
@@ -310,7 +361,7 @@ def chat(
             db.execute(
                 update(session_states)
                 .where(session_states.c.session_id == session_id)
-                .values(version=new_version)
+                .values(version=new_version, state=new_dialogue_state.value)
             )
             total_latency_ms = round((time.perf_counter() - started) * 1000)
             db.execute(
@@ -323,6 +374,8 @@ def chat(
                     query_plan=diagnostic.get('query_plan', 'not_available'),
                     state_before=state.version,
                     state_after=new_version,
+                    dialogue_state_before=state.state,
+                    dialogue_state_after=new_dialogue_state.value,
                     retrieval_top_k=diagnostic.get('retrieval_top_k', 0),
                     reranker=diagnostic.get('reranker', 'not_run'),
                     evidence_ids=json.dumps(diagnostic.get('evidence_ids', []), ensure_ascii=False),

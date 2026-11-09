@@ -7,7 +7,7 @@ import time
 
 import phonenumbers
 from fastapi import HTTPException
-from sqlalchemy import delete, insert, select, text, update
+from sqlalchemy import delete, func, insert, select, text, update
 
 from app.database import (
     audit,
@@ -19,6 +19,7 @@ from app.database import (
     session_states,
     settings,
 )
+from app.dialogue import DialogueState
 
 DRAFT_LIFETIME_SECONDS = 15 * 60
 KEY_PATTERN = re.compile(r'^[A-Za-z0-9_-]{8,100}$')
@@ -50,22 +51,70 @@ def lock_session(db, session_id):
 
 
 def require_open_session(db, session_id):
-    closed = db.execute(
-        select(session_states.c.closed).where(session_states.c.session_id == session_id)
-    ).scalar_one_or_none()
-    if closed:
+    state = db.execute(
+        select(session_states).where(session_states.c.session_id == session_id)
+    ).first()
+    if state is None:
+        version = db.execute(
+            select(func.count())
+            .select_from(messages)
+            .where(messages.c.session_id == session_id, messages.c.role == 'assistant')
+        ).scalar_one()
+        initial_state = DialogueState.CONSULTING if version else DialogueState.NEW
+        db.execute(
+            insert(session_states).values(
+                session_id=session_id,
+                version=version,
+                closed=False,
+                state=initial_state.value,
+            )
+        )
+        return initial_state.value
+    if state.closed:
         raise HTTPException(409, 'Диалог закрыт')
+    return state.state
 
 
 def cleanup_expired_drafts(engine, now=None):
     cutoff = int(time.time()) if now is None else int(now)
     with engine.begin() as db:
-        result = db.execute(
-            delete(lead_drafts).where(
+        candidates = db.execute(
+            select(lead_drafts.c.session_id, lead_drafts.c.request_key).where(
                 lead_drafts.c.lead_id.is_(None), lead_drafts.c.expires_at < cutoff
             )
-        )
-        return result.rowcount or 0
+        ).all()
+        removed = 0
+        for candidate in candidates:
+            lock_session(db, candidate.session_id)
+            draft = db.execute(
+                select(lead_drafts.c.return_state).where(
+                    lead_drafts.c.session_id == candidate.session_id,
+                    lead_drafts.c.request_key == candidate.request_key,
+                    lead_drafts.c.lead_id.is_(None),
+                    lead_drafts.c.expires_at < cutoff,
+                )
+            ).first()
+            if draft is None:
+                continue
+            db.execute(
+                update(session_states)
+                .where(
+                    session_states.c.session_id == candidate.session_id,
+                    session_states.c.state == DialogueState.LEAD_REVIEW.value,
+                    session_states.c.closed.is_(False),
+                )
+                .values(state=draft.return_state)
+            )
+            result = db.execute(
+                delete(lead_drafts).where(
+                    lead_drafts.c.session_id == candidate.session_id,
+                    lead_drafts.c.request_key == candidate.request_key,
+                    lead_drafts.c.lead_id.is_(None),
+                    lead_drafts.c.expires_at < cutoff,
+                )
+            )
+            removed += result.rowcount or 0
+        return removed
 
 
 def prepare(engine, session_id, key, name, phone, company):
@@ -77,14 +126,14 @@ def prepare(engine, session_id, key, name, phone, company):
     confirmation = secrets.token_urlsafe(32)
     with engine.begin() as db:
         lock_session(db, session_id)
-        require_open_session(db, session_id)
+        current_state = require_open_session(db, session_id)
         db.execute(
             delete(lead_drafts).where(
                 lead_drafts.c.lead_id.is_(None), lead_drafts.c.expires_at < int(time.time())
             )
         )
         previous = db.execute(
-            select(lead_drafts.c.lead_id).where(
+            select(lead_drafts.c.lead_id, lead_drafts.c.return_state).where(
                 lead_drafts.c.session_id == session_id, lead_drafts.c.request_key == key
             )
         ).first()
@@ -107,6 +156,11 @@ def prepare(engine, session_id, key, name, phone, company):
         revision = db.execute(
             select(settings.c.value).where(settings.c.key == 'active_knowledge')
         ).scalar_one_or_none()
+        return_state = (
+            previous.return_state
+            if previous and current_state == DialogueState.LEAD_REVIEW.value
+            else current_state
+        )
         values = {
             'session_id': session_id,
             'request_key': key,
@@ -117,6 +171,7 @@ def prepare(engine, session_id, key, name, phone, company):
             'knowledge_revision': revision,
             'confirmation_hash': hashlib.sha256(confirmation.encode()).hexdigest(),
             'expires_at': int(time.time()) + DRAFT_LIFETIME_SECONDS,
+            'return_state': return_state,
         }
         if previous:
             db.execute(
@@ -126,6 +181,11 @@ def prepare(engine, session_id, key, name, phone, company):
             )
         else:
             db.execute(insert(lead_drafts).values(**values))
+        db.execute(
+            update(session_states)
+            .where(session_states.c.session_id == session_id)
+            .values(state=DialogueState.LEAD_REVIEW.value)
+        )
     return {
         'name': name,
         'phone': phone,
@@ -178,6 +238,11 @@ def confirm(engine, session_id, key, token, consent):
             .values(lead_id=lead_id)
         )
         db.execute(
+            update(session_states)
+            .where(session_states.c.session_id == session_id)
+            .values(state=DialogueState.LEAD_CREATED.value)
+        )
+        db.execute(
             insert(audit).values(action='lead.create', actor='visitor', subject=str(lead_id))
         )
     return {'id': lead_id, 'status': 'saved'}
@@ -187,6 +252,13 @@ def cancel(engine, session_id, key):
     validate_key(key)
     with engine.begin() as db:
         lock_session(db, session_id)
+        draft = db.execute(
+            select(lead_drafts.c.return_state).where(
+                lead_drafts.c.session_id == session_id,
+                lead_drafts.c.request_key == key,
+                lead_drafts.c.lead_id.is_(None),
+            )
+        ).first()
         db.execute(
             delete(lead_drafts).where(
                 lead_drafts.c.session_id == session_id,
@@ -194,4 +266,13 @@ def cancel(engine, session_id, key):
                 lead_drafts.c.lead_id.is_(None),
             )
         )
+        if draft:
+            db.execute(
+                update(session_states)
+                .where(
+                    session_states.c.session_id == session_id,
+                    session_states.c.closed.is_(False),
+                )
+                .values(state=draft.return_state)
+            )
     return {'status': 'cancelled'}

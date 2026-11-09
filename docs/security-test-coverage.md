@@ -24,6 +24,7 @@ The threat model is defined by SEC-01 through SEC-20 in the technical specificat
 | SEC-18 Memory poisoning | `test_100_multistep_sessions_do_not_share_context_or_authority` | 100 scenarios verify no cross-session memory or context. |
 | SEC-19 Model output injection | `test_answer_rejects_unanswerable_or_invalid_claim_payloads` | Extra fields, bad citations, and unsupported claims fail closed. |
 | SEC-20 Unauthorized index swap | `test_knowledge_lifecycle_and_access` | Archive tampering invalidates the active revision. |
+| AC-05 Dialogue lifecycle | `tests/test_dialogue.py`; lifecycle assertions in `tests/test_api.py`; `test_dialogue_state_migration_upgrades_legacy_schema` | Persisted deterministic states cover greeting, clarification, consultation, lead review/creation, cancel, expiry, and closure. Other TZ states require an implemented recommendation/escalation route. |
 | AC-04 Conflicting source data | `test_conflicting_retrieved_evidence_fails_closed_before_model_call` | Near-identical statements with opposite polarity or numeric values fail closed; general semantic conflicts and owner-defined source priority remain unverified. |
 
 ## Current deterministic adversarial batch
