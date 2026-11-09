@@ -1,6 +1,9 @@
 import zipfile
 
-from core.rag import FALLBACK, Chunk, answer, load_knowledge, retrieve, retrieval_query, tokens, validate_claims, validate_response
+from core.rag import (
+    FALLBACK, Chunk, answer, load_knowledge, retrieve, retrieval_query, tariff_clarification,
+    tokens, validate_claims, validate_response,
+)
 
 
 def test_retrieval_query_uses_last_user_turn_without_promoting_assistant_text():
@@ -27,6 +30,41 @@ def test_sim_card_inflections_share_a_domain_token():
     assert 'simcard' in tokens('симки другого оператора')
     assert 'simcard' in tokens('Приборы с сим-картами других операторов также подключаются')
     assert 'simcard' in tokens('SIM-карты')
+
+
+def test_tariff_recommendation_collects_one_missing_input_at_a_time():
+    question = 'Какой тариф выбрать для предприятия?'
+    first = tariff_clarification(question)
+    assert first == 'Чтобы определить подходящую ценовую категорию, какая максимальная мощность объекта указана в договоре или счёте?'
+
+    history = [
+        {'role': 'user', 'content': question},
+        {'role': 'assistant', 'content': first},
+        {'role': 'user', 'content': 'Максимальная мощность 670 кВт.'},
+    ]
+    assert tariff_clarification('Продолжаем выбирать тариф', history) == (
+        'Какой уровень напряжения указан в договоре или счёте объекта?')
+
+    history.append({'role': 'user', 'content': 'Уровень напряжения 10 кВ.'})
+    assert tariff_clarification('Продолжаем выбирать тариф', history) is None
+    assert tariff_clarification('Сколько стоит подключение?') is None
+    unrelated_history = [{'role': 'user', 'content': 'Нагрузка объекта 670 кВт.'}]
+    assert 'максимальная мощность' in tariff_clarification(question, unrelated_history)
+
+
+def test_tariff_question_clarifies_without_calling_the_model(monkeypatch):
+    import httpx
+
+    def unexpected_model_call(**_kwargs):
+        raise AssertionError('Tariff clarification should not call the model')
+
+    monkeypatch.setattr(httpx, 'Client', unexpected_model_call)
+    diagnostics = {}
+    result = answer('Какой тариф выбрать для предприятия?', [Chunk('tariffs.md', 'Тарифы зависят от условий.')], diagnostics=diagnostics)
+
+    assert 'максимальная мощность' in result
+    assert diagnostics['intent'] == 'tariff_recommendation'
+    assert diagnostics['query_plan'] == 'clarify_missing_tariff_input'
 
 
 def test_no_model_fails_closed(monkeypatch):
