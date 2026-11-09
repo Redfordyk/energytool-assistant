@@ -192,6 +192,8 @@ def answer(question, chunks, history=(), diagnostics=None):
         if prior_questions:
             search_query += ' ' + prior_questions[-1][:1000]
     base = (os.getenv('LLM_BASE_URL') or os.getenv('BASE_URL') or os.getenv('OPENAI_BASE_URL') or '').rstrip('/')
+    embedding_base = (os.getenv('EMBEDDER_BASE_URL') or base).rstrip('/')
+    reranker_base = (os.getenv('RERANKER_BASE_URL') or base).rstrip('/')
     key = os.getenv('LLM_API_KEY') or os.getenv('OPENAI_API_KEY')
     model = os.getenv('LLM_MODEL') or os.getenv('GEN_MODEL') or os.getenv('OPENAI_MODEL') or 'qwen/qwen3.8-27b'
     if diagnostics is not None:
@@ -207,7 +209,7 @@ def answer(question, chunks, history=(), diagnostics=None):
                 diagnostics['query_plan'] = 'bm25'
             lexical = retrieve(search_query, chunks, limit=20)
             try:
-                semantic = semantic_rank(client, base, os.getenv('EMBEDDER_API_KEY') or key,
+                semantic = semantic_rank(client, embedding_base, os.getenv('EMBEDDER_API_KEY') or key,
                                          os.getenv('EMB_MODEL') or 'baai/bge-m3', search_query, chunks, 20,
                                          deadline=min(deadline, time.monotonic() + 6))
                 if diagnostics is not None:
@@ -218,7 +220,7 @@ def answer(question, chunks, history=(), diagnostics=None):
             if not candidates:
                 return finish(FALLBACK, 'no_retrieval_evidence')
             try:
-                sources = rerank(client, base, os.getenv('RERANKER_API_KEY') or key,
+                sources = rerank(client, reranker_base, os.getenv('RERANKER_API_KEY') or key,
                                  os.getenv('RERANKER_MODEL') or 'qwen/qwen3-reranker-8b',
                                  search_query, candidates, 6, deadline=min(deadline, time.monotonic() + 3))
                 if diagnostics is not None:

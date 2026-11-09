@@ -10,4 +10,4 @@ COPY migrations migrations
 RUN useradd --create-home appuser && mkdir /app/data /state /knowledge && chown appuser:appuser /app /state /knowledge
 USER appuser
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-proxy-headers"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=\"${FORWARDED_ALLOW_IPS:-127.0.0.1}\""]
