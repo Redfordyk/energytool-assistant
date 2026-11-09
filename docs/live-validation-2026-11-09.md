@@ -50,6 +50,27 @@ The 50/100-concurrent-session and outage/chaos targets remain untested; the
 current 1 vCPU / 2 GB test host and API rate limits do not establish those
 capacity targets.
 
+## Organizer demo and retrieval regression
+
+The organizer's `demo_questions.csv` is the same file as local
+`data/questions.csv` (SHA-256
+`2adab2f1781b8b12c50230bf82a1af2e74259fc09ff6f998eb5ae68ef72ac4ea`). The
+18-row HTTP run created and closed all sessions, returned HTTP 200 for every
+row, returned 14 substantive answers, and used the safe fallback for 4. All
+four fallbacks had `claim_verification_failed`; there were no retrieval/API
+errors. In-memory replays later passed verification for those cases at least
+once, confirming that a single live pass is stochastic. This is not an
+answer-correctness score, and the four original refusals remain in the report.
+
+On the same 18 questions and 292 chunks, the deterministic BM25 regression
+reported source Recall@5/@10 = 1.00 and evidence Recall@10 = 1.00, MRR@10 =
+0.89 across 19 evidence anchors. The detailed reports are
+[`retrieval-baseline.json`](retrieval-baseline.json) and
+[`chunk-retrieval-baseline.json`](chunk-retrieval-baseline.json). This dataset
+was used during development, so these are regression results, not a blind
+holdout. The live deployment used BM25 only: compatible embedding and reranker
+endpoints were not configured.
+
 ## UI artifacts
 
 - Desktop: [`user-page-desktop.png`](../output/screenshots/user-page-desktop.png)
