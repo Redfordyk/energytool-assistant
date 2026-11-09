@@ -18,7 +18,26 @@ def find(names):
     raise FileNotFoundError(', '.join(names))
 
 
+def configure_submission_retrieval():
+    """Use the platform's shared API for optional retrieval services by default.
+
+    Explicitly setting either endpoint to an empty string disables that service,
+    which is useful when the configured generation provider has no such route.
+    The web application does not call this function and keeps its own provider
+    configuration independent.
+    """
+    base = (
+        os.getenv('LLM_BASE_URL') or os.getenv('BASE_URL') or os.getenv('OPENAI_BASE_URL') or ''
+    ).rstrip('/')
+    if not base:
+        return
+    for variable in ('EMBEDDER_BASE_URL', 'RERANKER_BASE_URL'):
+        if variable not in os.environ:
+            os.environ[variable] = base
+
+
 def main():
+    configure_submission_retrieval()
     chunks = load_knowledge(find(('knowledge-base.zip', 'knowledge_base.zip', 'kb.zip')))
     with find(('questions.csv', 'train.csv')).open(encoding='utf-8-sig', newline='') as file:
         rows = list(csv.DictReader(file))
