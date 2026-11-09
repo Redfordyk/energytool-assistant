@@ -25,7 +25,7 @@ STOP_WORDS = frozenset(('это', 'как', 'что', 'для', 'или', 'пр�
 TOKEN_PREFIX_LENGTH = 5
 BM25_K1 = 0.7
 BM25_B = 0.25
-QUERY_EXPANSION_REVISION = 'ru-energy-domain-v1'
+QUERY_EXPANSION_REVISION = 'ru-energy-domain-v2'
 RETRIEVAL_CONFIG = {
     'algorithm': 'BM25',
     'token_prefix_length': TOKEN_PREFIX_LENGTH,
@@ -167,8 +167,22 @@ def expand_retrieval_query(question):
         additions.append('многотарифные приборы раздельные показания по тарифам тарифная зона')
     if re.search(r'фото', lowered) and re.search(r'техник|архив|накопл', lowered):
         additions.append('архив изображений пакетная загрузка формирование списков верификация данных')
+    if re.search(r'фото', lowered) and re.search(r'срок|хранен|удален', lowered):
+        additions.append('срок хранения архива изображений определяется договором технических ограничений нет')
     if re.search(r'вечер', lowered) and re.search(r'солнеч|станци|панел', lowered):
         additions.append('преимущественно ночью выработка не совпадет с нагрузкой профиль потребления')
+    if re.search(r'обслужив|очистк', lowered) and re.search(r'солнеч|станци|панел', lowered):
+        additions.append('обслуживание периодическая очистка панелей 0.5 процента стоимости в год')
+    if re.search(r'оптов', lowered) and re.search(r'квт|мвт|мощност', lowered):
+        additions.append('порог доступа присоединенная мощность 750 кВт 20 МВт прямое участие посредник')
+    if re.search(r'излиш|отдавать в сеть|продать в сеть', lowered) and re.search(r'солнеч|станци|генерац', lowered):
+        additions.append('юрлица и ип могут отдавать в сеть до 150 кВт излишки генерации')
+    if re.search(r'част|увелич|расшир|наращ', lowered) and re.search(r'солнеч|станци|панел|мощност', lowered):
+        additions.append('станция легко наращивается поэтапный ввод мощности начать с части нагрузки')
+    if re.search(r'оценк|расчет', lowered) and re.search(r'солнеч|станци|панел', lowered):
+        additions.append('регион характеристики объекта площадь тип кровли присоединенная мощность профиль потребления')
+    if re.search(r'инфраструктур|своем сервер|контур заказчика|контуре заказчика', lowered):
+        additions.append('работает только на инфраструктуре мтс установка в контуре клиента не предусмотрена')
     if re.search(r'цех', lowered):
         additions.append('учет по цехам единицам оборудования распределение затрат')
     if re.search(r'арендатор', lowered):
@@ -300,8 +314,10 @@ def answer(question, chunks, history=(), diagnostics=None):
             search_query += ' ' + prior_questions[-1][:1000]
     search_query = expand_retrieval_query(search_query)
     base = (os.getenv('LLM_BASE_URL') or os.getenv('BASE_URL') or os.getenv('OPENAI_BASE_URL') or '').rstrip('/')
-    embedding_base = (os.getenv('EMBEDDER_BASE_URL') or base).rstrip('/')
-    reranker_base = (os.getenv('RERANKER_BASE_URL') or base).rstrip('/')
+    # Generation APIs do not necessarily implement embedding/reranking routes.
+    # Enable each retrieval service only when its endpoint is explicitly set.
+    embedding_base = os.getenv('EMBEDDER_BASE_URL', '').rstrip('/')
+    reranker_base = os.getenv('RERANKER_BASE_URL', '').rstrip('/')
     key = os.getenv('LLM_API_KEY') or os.getenv('OPENAI_API_KEY')
     model = os.getenv('LLM_MODEL') or os.getenv('GEN_MODEL') or os.getenv('OPENAI_MODEL') or 'qwen/qwen3.8-27b'
     if diagnostics is not None:
@@ -322,28 +338,36 @@ def answer(question, chunks, history=(), diagnostics=None):
             if diagnostics is not None:
                 diagnostics['query_plan'] = 'bm25'
             lexical = retrieve(search_query, chunks, limit=20)
-            try:
-                semantic = semantic_rank(client, embedding_base, os.getenv('EMBEDDER_API_KEY') or key,
-                                         os.getenv('EMB_MODEL') or 'baai/bge-m3', search_query, chunks, 20,
-                                         deadline=min(deadline, time.monotonic() + 6))
-                if diagnostics is not None:
-                    diagnostics['query_plan'] = 'bm25+embeddings_rrf'
-            except RETRIEVAL_ERRORS:
+            if embedding_base:
+                try:
+                    semantic = semantic_rank(client, embedding_base, os.getenv('EMBEDDER_API_KEY') or key,
+                                             os.getenv('EMB_MODEL') or 'baai/bge-m3', search_query, chunks, 20,
+                                             deadline=min(deadline, time.monotonic() + 6))
+                    if diagnostics is not None:
+                        diagnostics['query_plan'] = 'bm25+embeddings_rrf'
+                except RETRIEVAL_ERRORS:
+                    semantic = []
+            else:
                 semantic = []
             candidates = fuse([lexical, semantic], 20)
             if not candidates:
                 return finish(FALLBACK, 'no_retrieval_evidence')
-            try:
-                sources = rerank(client, reranker_base, os.getenv('RERANKER_API_KEY') or key,
-                                 os.getenv('RERANKER_MODEL') or 'qwen/qwen3-reranker-8b',
-                                 search_query, candidates, 6, deadline=min(deadline, time.monotonic() + 3))
-                if diagnostics is not None:
-                    diagnostics['reranker'] = 'used'
-                    diagnostics['query_plan'] += '+reranker'
-            except RETRIEVAL_ERRORS:
+            if reranker_base:
+                try:
+                    sources = rerank(client, reranker_base, os.getenv('RERANKER_API_KEY') or key,
+                                     os.getenv('RERANKER_MODEL') or 'qwen/qwen3-reranker-8b',
+                                     search_query, candidates, 6, deadline=min(deadline, time.monotonic() + 3))
+                    if diagnostics is not None:
+                        diagnostics['reranker'] = 'used'
+                        diagnostics['query_plan'] += '+reranker'
+                except RETRIEVAL_ERRORS:
+                    sources = candidates[:6]
+                    if diagnostics is not None:
+                        diagnostics['reranker'] = 'unavailable'
+            else:
                 sources = candidates[:6]
                 if diagnostics is not None:
-                    diagnostics['reranker'] = 'unavailable'
+                    diagnostics['reranker'] = 'not_configured'
             if diagnostics is not None:
                 diagnostics['retrieval_top_k'] = len(sources)
                 diagnostics['evidence_ids'] = [

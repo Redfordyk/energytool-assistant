@@ -50,6 +50,26 @@ def test_retrieval_query_expands_metering_and_losses_dialogues_by_intent():
     assert 'количество и тип приборов' not in losses_query
 
 
+def test_retrieval_query_expands_deployment_retention_and_solar_project_inputs():
+    deployment = expand_retrieval_query('Можно развернуть поиск потерь в инфраструктуре заказчика?')
+    retention = expand_retrieval_query('Есть ли обязательный срок удаления фотографий счётчиков?')
+    staged = expand_retrieval_query('Можно увеличить мощность солнечной станции позднее?')
+    estimate = expand_retrieval_query('Какие сведения нужны для оценки солнечной станции?')
+    assert 'установка в контуре клиента не предусмотрена' in deployment
+    assert 'срок хранения архива изображений' in retention
+    assert 'поэтапный ввод мощности' in staged
+    assert 'площадь тип кровли присоединенная мощность' in estimate
+
+
+def test_retrieval_query_expands_market_thresholds_export_and_panel_maintenance():
+    market = expand_retrieval_query('При мощности 600 кВт доступен оптовый рынок?')
+    export = expand_retrieval_query('Можно отдавать излишки солнечной генерации в сеть?')
+    maintenance = expand_retrieval_query('Как часто нужна очистка солнечных панелей?')
+    assert '750 кВт 20 МВт прямое участие' in market
+    assert 'до 150 кВт излишки генерации' in export
+    assert 'периодическая очистка панелей' in maintenance
+
+
 def test_retrieval_covers_later_sections(tmp_path):
     archive = tmp_path / 'kb.zip'
     with zipfile.ZipFile(archive, 'w') as z:

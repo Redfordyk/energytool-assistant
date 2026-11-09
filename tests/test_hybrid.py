@@ -62,6 +62,8 @@ def test_exhausted_embedding_budget_does_not_call_remote_service(monkeypatch):
 def test_answer_falls_back_to_lexical_search_but_requires_verification(monkeypatch):
     monkeypatch.setenv('LLM_BASE_URL', 'https://test-answer')
     monkeypatch.setenv('LLM_API_KEY', 'fake')
+    monkeypatch.delenv('EMBEDDER_BASE_URL', raising=False)
+    monkeypatch.delenv('RERANKER_BASE_URL', raising=False)
     class Client:
         def __init__(self, **kwargs):
             self.chat_calls = 0
@@ -85,6 +87,6 @@ def test_answer_falls_back_to_lexical_search_but_requires_verification(monkeypat
     diagnostics = {}
     assert answer('срок', [Chunk('test', 'Срок составляет 10 дней при согласовании.')], diagnostics=diagnostics) == 'Срок составляет 10 дней.'
     assert diagnostics['query_plan'] == 'bm25'
-    assert diagnostics['reranker'] == 'unavailable'
+    assert diagnostics['reranker'] == 'not_configured'
     assert diagnostics['claim_verification'] is True
     assert diagnostics['evidence_ids']

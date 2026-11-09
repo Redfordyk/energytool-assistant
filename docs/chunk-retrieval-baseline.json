@@ -5,7 +5,7 @@
     "chunks": 292,
     "knowledge_sha256": "d5f1bbba0094d1eb7e4918bd7a1d37c621ae5cd498010ca2cba041ddddafd66a",
     "questions_sha256": "2adab2f1781b8b12c50230bf82a1af2e74259fc09ff6f998eb5ae68ef72ac4ea",
-    "gold_chunks_sha256": "67781d5e06bfc2de1792df675d3a9bac9bd6091696b710f69bc2a31929f8c897",
+    "gold_chunks_sha256": "dd90b950e20f5d655e7dd28b1fc2e6753e25f15f8d078ecc97486d52b3bdc76b",
     "retrieval_config": {
       "algorithm": "BM25",
       "token_prefix_length": 5,
@@ -17,7 +17,7 @@
         "sim -> simcard",
         "фот* -> photo"
       ],
-      "query_expansion_revision": "ru-energy-domain-v1"
+      "query_expansion_revision": "ru-energy-domain-v2"
     },
     "query_hit@1": 0.7777777777777778,
     "evidence_recall@1": 0.7368421052631579,

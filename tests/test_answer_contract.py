@@ -41,13 +41,15 @@ def gateway_env(monkeypatch):
     monkeypatch.setenv('LLM_BASE_URL', 'https://test-gateway')
     monkeypatch.setenv('LLM_API_KEY', 'test-only')
     monkeypatch.delenv('LLM_JSON_MODE', raising=False)
+    monkeypatch.delenv('EMBEDDER_BASE_URL', raising=False)
+    monkeypatch.delenv('RERANKER_BASE_URL', raising=False)
 
 
 def install_gateway(monkeypatch, gateway):
     monkeypatch.setattr(httpx, 'Client', lambda **kwargs: gateway)
 
 
-def test_answer_survives_optional_retrieval_failures_with_verified_quote(monkeypatch, gateway_env):
+def test_answer_uses_lexical_fallback_when_retrieval_services_are_not_configured(monkeypatch, gateway_env):
     response = json.dumps({'claims': [{
         'text': 'Срок поставки — 10 дней при согласовании.',
         'source': 1,
@@ -59,8 +61,8 @@ def test_answer_survives_optional_retrieval_failures_with_verified_quote(monkeyp
     result = answer('срок поставки', [Chunk('terms.md', 'Срок поставки составляет 10 дней при согласовании.')])
 
     assert result == 'Срок поставки — 10 дней при согласовании.'
-    assert any(url.endswith('/embeddings') for url, _ in gateway.calls)
-    assert any(url.endswith('/rerank') for url, _ in gateway.calls)
+    assert not any(url.endswith('/embeddings') for url, _ in gateway.calls)
+    assert not any(url.endswith('/rerank') for url, _ in gateway.calls)
     assert gateway.chat_calls == 2
 
 
