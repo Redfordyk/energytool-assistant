@@ -1,5 +1,6 @@
 """Browser smoke test; uses an isolated database and no external model."""
 
+import json
 import os
 import socket
 import subprocess
@@ -94,6 +95,34 @@ def test_review_and_save_lead_in_browser(tmp_path):
                 '(element) => element.scrollWidth <= window.innerWidth'
             )
             page.set_viewport_size({'width': 1280, 'height': 900})
+
+            xss_session = page.request.post(url + '/api/sessions').json()
+            xss_page = browser.new_page()
+            xss_page.add_init_script(
+                'sessionStorage.setItem("session", JSON.stringify('
+                + json.dumps(xss_session)
+                + '));'
+            )
+            malicious_answer = '<img src=x onerror="window.__xss=1"><script>window.__xss=2</script>'
+
+            def inject_malicious_history(route):
+                if route.request.method == 'GET' and '/messages?' in route.request.url:
+                    route.fulfill(
+                        status=200,
+                        content_type='application/json',
+                        body=json.dumps(
+                            [{'id': 1, 'role': 'assistant', 'content': malicious_answer}]
+                        ),
+                    )
+                else:
+                    route.continue_()
+
+            xss_page.route('**/api/sessions/*/messages*', inject_malicious_history)
+            xss_page.goto(url)
+            expect(xss_page.locator('.message-assistant p')).to_contain_text(malicious_answer)
+            expect(xss_page.locator('#messages img, #messages script')).to_have_count(0)
+            assert xss_page.evaluate('window.__xss || null') is None
+            xss_page.close()
 
             def lose_first_response(route):
                 if route.request.method == 'POST':
