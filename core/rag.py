@@ -22,11 +22,21 @@ def json_mode_enabled():
 PROMPT_REVISION = 'claims-source-v2'
 TOKEN = re.compile(r'[a-zа-яё0-9]+', re.I)
 STOP_WORDS = frozenset(('это', 'как', 'что', 'для', 'или', 'при', 'если', 'можно', 'какой', 'какая', 'есть', 'надо', 'нужно', 'будет', 'наш', 'меня', 'мне', 'расскаж', 'скажит'))
+TOKEN_PREFIX_LENGTH = 5
+BM25_K1 = 0.7
+BM25_B = 0.25
+RETRIEVAL_CONFIG = {
+    'algorithm': 'BM25',
+    'token_prefix_length': TOKEN_PREFIX_LENGTH,
+    'k1': BM25_K1,
+    'b': BM25_B,
+}
 
 
 def tokens(text):
     # Prefix matching helps Russian inflections without downloading a stemmer.
-    return [w[:6] for w in TOKEN.findall(text.lower().replace('ё', 'е')) if len(w) >= 3 and w[:6] not in STOP_WORDS]
+    return [w[:TOKEN_PREFIX_LENGTH] for w in TOKEN.findall(text.lower().replace('ё', 'е'))
+            if len(w) >= 3 and w[:TOKEN_PREFIX_LENGTH] not in STOP_WORDS]
 
 
 @dataclass(frozen=True)
@@ -87,7 +97,8 @@ def retrieve(question, chunks, limit=6):
     for index, doc in enumerate(docs):
         score = sum(
             math.log(1 + (len(docs) - df[w] + 0.5) / (df[w] + 0.5))
-            * doc[w] * 2.2 / (doc[w] + 1.2 * (0.25 + 0.75 * lengths[index] / average_length))
+            * doc[w] * (BM25_K1 + 1)
+            / (doc[w] + BM25_K1 * (1 - BM25_B + BM25_B * lengths[index] / average_length))
             for w in query if w in doc
         )
         if score:
