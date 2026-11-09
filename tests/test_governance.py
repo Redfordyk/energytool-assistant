@@ -26,7 +26,11 @@ def test_knowledge_lifecycle_and_access(tmp_path, monkeypatch):
     session = client.post('/api/sessions').json()
     session_history = '/api/admin/sessions/' + session['id'] + '/messages'
     assert client.get(session_history).status_code == 401
-    client.post('/api/sessions/' + session['id'] + '/messages', headers={'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'message-key-1'}, json={'text': 'Приватный текст', 'session_version': 0})
+    client.post(
+        '/api/sessions/' + session['id'] + '/messages',
+        headers={'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'message-key-1'},
+        json={'text': 'Приватный текст', 'session_version': 0},
+    )
     assert 'Приватный текст' not in client.get(session_history, headers=reviewer).text
     assert 'Приватный текст' in client.get(session_history, headers=admin).text
     assert client.post(root + '/register', headers=reviewer).status_code == 403
@@ -54,14 +58,19 @@ def test_chat_trace_is_retrievable_by_reviewer_without_message_text(tmp_path, mo
     session = client.post('/api/sessions').json()
     chat = client.post(
         '/api/sessions/' + session['id'] + '/messages',
-        headers={'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'trace-message-1'},
+        headers={
+            'Authorization': 'Bearer ' + session['token'],
+            'Idempotency-Key': 'trace-message-1',
+        },
         json={'text': 'Личный вопрос без настроенной базы', 'session_version': 0},
     )
     assert chat.status_code == 200
     trace_id = chat.json()['trace_id']
     assert trace_id == chat.headers['x-request-id']
 
-    reviewer = client.get('/api/admin/traces/' + trace_id, headers={'Authorization': 'Bearer trace-reviewer-secret'})
+    reviewer = client.get(
+        '/api/admin/traces/' + trace_id, headers={'Authorization': 'Bearer trace-reviewer-secret'}
+    )
     assert reviewer.status_code == 200
     trace = reviewer.json()
     assert trace['trace_id'] == trace_id
@@ -76,10 +85,16 @@ def test_chat_trace_is_retrievable_by_reviewer_without_message_text(tmp_path, mo
 
     retry = client.post(
         '/api/sessions/' + session['id'] + '/messages',
-        headers={'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'trace-message-1'},
+        headers={
+            'Authorization': 'Bearer ' + session['token'],
+            'Idempotency-Key': 'trace-message-1',
+        },
         json={'text': 'Личный вопрос без настроенной базы', 'session_version': 0},
     )
     assert retry.json()['trace_id'] == trace_id
     assert retry.headers['x-request-id'] == trace_id
     with engine.connect() as db:
-        assert db.execute(select(audit.c.action).where(audit.c.action == 'trace.review')).scalar_one() == 'trace.review'
+        assert (
+            db.execute(select(audit.c.action).where(audit.c.action == 'trace.review')).scalar_one()
+            == 'trace.review'
+        )

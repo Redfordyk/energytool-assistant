@@ -10,19 +10,36 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool, StrictInt
-from sqlalchemy import func, insert, select, update
-from sqlalchemy import text
+from sqlalchemy import func, insert, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.database import audit, knowledge, make_engine, message_requests, messages, session_states, sessions, traces
-from app.governance import active_knowledge, active_knowledge_snapshot, change_revision, register, require_admin, require_role
-from app.lead_service import cancel as cancel_lead, cleanup_expired_drafts, confirm as confirm_lead, lock_session, prepare as prepare_lead, validate_key
+from app.database import (
+    audit,
+    knowledge,
+    make_engine,
+    message_requests,
+    messages,
+    session_states,
+    sessions,
+    traces,
+)
+from app.governance import (
+    active_knowledge,
+    active_knowledge_snapshot,
+    change_revision,
+    register,
+    require_admin,
+    require_role,
+)
+from app.lead_service import cancel as cancel_lead
+from app.lead_service import cleanup_expired_drafts, lock_session, validate_key
+from app.lead_service import confirm as confirm_lead
+from app.lead_service import prepare as prepare_lead
 from app.security import RequestGuard
 from core.rag import answer
 
@@ -41,9 +58,12 @@ def _expired_draft_cleanup_loop(stop):
 @asynccontextmanager
 async def lifespan(_app):
     _app.state.cleanup_stop = threading.Event()
-    worker = threading.Thread(target=_expired_draft_cleanup_loop,
-                              args=(_app.state.cleanup_stop,),
-                              name='expired-lead-draft-cleanup', daemon=True)
+    worker = threading.Thread(
+        target=_expired_draft_cleanup_loop,
+        args=(_app.state.cleanup_stop,),
+        name='expired-lead-draft-cleanup',
+        daemon=True,
+    )
     worker.start()
     try:
         yield
@@ -73,7 +93,9 @@ def authorize(session_id, authorization):
     token = authorization[7:] if authorization.startswith('Bearer ') else ''
     digest = hashlib.sha256(token.encode()).hexdigest()
     with engine.connect() as db:
-        stored = db.execute(select(sessions.c.token_hash).where(sessions.c.id == session_id)).scalar_one_or_none()
+        stored = db.execute(
+            select(sessions.c.token_hash).where(sessions.c.id == session_id)
+        ).scalar_one_or_none()
     if not token or not stored or not secrets.compare_digest(stored, digest):
         raise HTTPException(404, 'Диалог не найден')
 
@@ -114,8 +136,10 @@ def readiness():
     try:
         with engine.connect() as db:
             db.execute(text('SELECT 1'))
-        configured = bool((os.getenv('LLM_BASE_URL') or os.getenv('BASE_URL') or os.getenv('OPENAI_BASE_URL'))
-                          and (os.getenv('LLM_API_KEY') or os.getenv('OPENAI_API_KEY')))
+        configured = bool(
+            (os.getenv('LLM_BASE_URL') or os.getenv('BASE_URL') or os.getenv('OPENAI_BASE_URL'))
+            and (os.getenv('LLM_API_KEY') or os.getenv('OPENAI_API_KEY'))
+        )
         if configured and active_knowledge(engine):
             return {'status': 'ready'}
     except SQLAlchemyError:
@@ -127,33 +151,53 @@ def readiness():
 def create_session():
     session_id, token = secrets.token_urlsafe(24), secrets.token_urlsafe(32)
     with engine.begin() as db:
-        db.execute(insert(sessions).values(id=session_id, token_hash=hashlib.sha256(token.encode()).hexdigest()))
+        db.execute(
+            insert(sessions).values(
+                id=session_id, token_hash=hashlib.sha256(token.encode()).hexdigest()
+            )
+        )
         db.execute(insert(session_states).values(session_id=session_id, version=0, closed=False))
     return {'id': session_id, 'token': token, 'version': 0}
 
 
 def ensure_state(db, session_id):
     """Initialize versions for sessions created before the state migration."""
-    state = db.execute(select(session_states).where(session_states.c.session_id == session_id)).first()
+    state = db.execute(
+        select(session_states).where(session_states.c.session_id == session_id)
+    ).first()
     if state is not None:
         return state
-    count = db.execute(select(func.count()).select_from(messages).where(
-        messages.c.session_id == session_id, messages.c.role == 'assistant')).scalar_one()
+    count = db.execute(
+        select(func.count())
+        .select_from(messages)
+        .where(messages.c.session_id == session_id, messages.c.role == 'assistant')
+    ).scalar_one()
     dialect_insert = pg_insert if db.dialect.name == 'postgresql' else sqlite_insert
-    db.execute(dialect_insert(session_states).values(session_id=session_id, version=count, closed=False)
-               .on_conflict_do_nothing(index_elements=['session_id']))
+    db.execute(
+        dialect_insert(session_states)
+        .values(session_id=session_id, version=count, closed=False)
+        .on_conflict_do_nothing(index_elements=['session_id'])
+    )
     return db.execute(select(session_states).where(session_states.c.session_id == session_id)).one()
 
 
 def read_history(db, session_id, after_id=0, limit=100):
-    rows = db.execute(select(messages.c.id, messages.c.role, messages.c.content).where(
-        messages.c.session_id == session_id, messages.c.id > after_id).order_by(messages.c.id).limit(limit))
+    rows = db.execute(
+        select(messages.c.id, messages.c.role, messages.c.content)
+        .where(messages.c.session_id == session_id, messages.c.id > after_id)
+        .order_by(messages.c.id)
+        .limit(limit)
+    )
     return [{'id': row.id, 'role': row.role, 'content': row.content} for row in rows]
 
 
 def recent_history(db, session_id):
-    rows = db.execute(select(messages.c.role, messages.c.content).where(
-        messages.c.session_id == session_id).order_by(messages.c.id.desc()).limit(8)).all()
+    rows = db.execute(
+        select(messages.c.role, messages.c.content)
+        .where(messages.c.session_id == session_id)
+        .order_by(messages.c.id.desc())
+        .limit(8)
+    ).all()
     return [{'role': row.role, 'content': row.content} for row in reversed(rows)]
 
 
@@ -173,22 +217,34 @@ def close_session(session_id: str, authorization: str = Header(default='')):
         lock_session(db, session_id)
         state = ensure_state(db, session_id)
         if not state.closed:
-            db.execute(update(session_states).where(session_states.c.session_id == session_id)
-                       .values(closed=True, version=state.version + 1))
+            db.execute(
+                update(session_states)
+                .where(session_states.c.session_id == session_id)
+                .values(closed=True, version=state.version + 1)
+            )
         return {'status': 'closed'}
 
 
 @app.get('/api/sessions/{session_id}/messages')
-def history(session_id: str, authorization: str = Header(default=''),
-            after_id: int = Query(default=0, ge=0), limit: int = Query(default=100, ge=1, le=100)):
+def history(
+    session_id: str,
+    authorization: str = Header(default=''),
+    after_id: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=100),
+):
     authorize(session_id, authorization)
     with engine.connect() as db:
         return read_history(db, session_id, after_id, limit)
 
 
 @app.post('/api/sessions/{session_id}/messages')
-def chat(session_id: str, message: Message, request: Request, authorization: str = Header(default=''),
-         idempotency_key: str = Header(default='')):
+def chat(
+    session_id: str,
+    message: Message,
+    request: Request,
+    authorization: str = Header(default=''),
+    idempotency_key: str = Header(default=''),
+):
     started = time.perf_counter()
     authorize(session_id, authorization)
     validate_key(idempotency_key)
@@ -198,76 +254,132 @@ def chat(session_id: str, message: Message, request: Request, authorization: str
         raise HTTPException(422, 'Введите сообщение')
     with session_lock(session_id), engine.begin() as db:
         lock_session(db, session_id)
-        prior = db.execute(select(message_requests).where(
-            message_requests.c.session_id == session_id, message_requests.c.request_key == idempotency_key)).first()
+        prior = db.execute(
+            select(message_requests).where(
+                message_requests.c.session_id == session_id,
+                message_requests.c.request_key == idempotency_key,
+            )
+        ).first()
         if prior:
             if prior.question != question or prior.request_version != message.session_version:
                 raise HTTPException(409, 'Ключ уже использован для другого сообщения')
-            prior_trace = db.execute(select(traces.c.trace_id).where(
-                traces.c.session_id == session_id, traces.c.idempotency_key == idempotency_key)).scalar_one_or_none()
+            prior_trace = db.execute(
+                select(traces.c.trace_id).where(
+                    traces.c.session_id == session_id, traces.c.idempotency_key == idempotency_key
+                )
+            ).scalar_one_or_none()
             if prior_trace:
                 request.scope.setdefault('state', {})['request_id'] = prior_trace
-            return {'answer': prior.answer, 'version': prior.result_version, 'trace_id': prior_trace}
+            return {
+                'answer': prior.answer,
+                'version': prior.result_version,
+                'trace_id': prior_trace,
+            }
         state = ensure_state(db, session_id)
         if state.closed:
             raise HTTPException(409, 'Диалог закрыт')
         if state.version != message.session_version:
             raise HTTPException(409, 'История изменилась; обновите диалог')
         if not CHAT_SLOTS.acquire(blocking=False):
-            raise HTTPException(503, 'Сервис занят, повторите запрос позже', headers={'Retry-After': '5'})
+            raise HTTPException(
+                503, 'Сервис занят, повторите запрос позже', headers={'Retry-After': '5'}
+            )
         try:
             previous = recent_history(db, session_id)
             knowledge_revision, chunks = active_knowledge_snapshot(engine)
-            diagnostic = {}
+            diagnostic: dict[str, object] = {}
             result = answer(question, chunks or (), previous, diagnostic)
-            db.execute(insert(messages), [{'session_id': session_id, 'role': 'user', 'content': question},
-                                          {'session_id': session_id, 'role': 'assistant', 'content': result}])
+            db.execute(
+                insert(messages),
+                [
+                    {'session_id': session_id, 'role': 'user', 'content': question},
+                    {'session_id': session_id, 'role': 'assistant', 'content': result},
+                ],
+            )
             new_version = state.version + 1
-            db.execute(insert(message_requests).values(session_id=session_id, request_key=idempotency_key,
-                       question=question, answer=result, request_version=state.version, result_version=new_version))
-            db.execute(update(session_states).where(session_states.c.session_id == session_id).values(version=new_version))
+            db.execute(
+                insert(message_requests).values(
+                    session_id=session_id,
+                    request_key=idempotency_key,
+                    question=question,
+                    answer=result,
+                    request_version=state.version,
+                    result_version=new_version,
+                )
+            )
+            db.execute(
+                update(session_states)
+                .where(session_states.c.session_id == session_id)
+                .values(version=new_version)
+            )
             total_latency_ms = round((time.perf_counter() - started) * 1000)
-            db.execute(insert(traces).values(
-                trace_id=request_id, request_id=request_id, session_id=session_id,
-                idempotency_key=idempotency_key,
-                intent=diagnostic.get('intent', 'knowledge_query'),
-                query_plan=diagnostic.get('query_plan', 'not_available'),
-                state_before=state.version, state_after=new_version,
-                retrieval_top_k=diagnostic.get('retrieval_top_k', 0),
-                reranker=diagnostic.get('reranker', 'not_run'),
-                evidence_ids=json.dumps(diagnostic.get('evidence_ids', []), ensure_ascii=False),
-                claim_verification=diagnostic.get('claim_verification'),
-                model_name=diagnostic.get('model_name'),
-                prompt_revision=diagnostic.get('prompt_revision', 'claims-json-v1'),
-                ttft_ms=diagnostic.get('ttft_ms'), total_latency_ms=total_latency_ms,
-                prompt_token_count=diagnostic.get('prompt_token_count'),
-                completion_token_count=diagnostic.get('completion_token_count'),
-                fallback_reason=diagnostic.get('fallback_reason'),
-                knowledge_revision=knowledge_revision,
-            ))
+            db.execute(
+                insert(traces).values(
+                    trace_id=request_id,
+                    request_id=request_id,
+                    session_id=session_id,
+                    idempotency_key=idempotency_key,
+                    intent=diagnostic.get('intent', 'knowledge_query'),
+                    query_plan=diagnostic.get('query_plan', 'not_available'),
+                    state_before=state.version,
+                    state_after=new_version,
+                    retrieval_top_k=diagnostic.get('retrieval_top_k', 0),
+                    reranker=diagnostic.get('reranker', 'not_run'),
+                    evidence_ids=json.dumps(diagnostic.get('evidence_ids', []), ensure_ascii=False),
+                    claim_verification=diagnostic.get('claim_verification'),
+                    model_name=diagnostic.get('model_name'),
+                    prompt_revision=diagnostic.get('prompt_revision', 'claims-json-v1'),
+                    ttft_ms=diagnostic.get('ttft_ms'),
+                    total_latency_ms=total_latency_ms,
+                    prompt_token_count=diagnostic.get('prompt_token_count'),
+                    completion_token_count=diagnostic.get('completion_token_count'),
+                    fallback_reason=diagnostic.get('fallback_reason'),
+                    knowledge_revision=knowledge_revision,
+                )
+            )
         finally:
             CHAT_SLOTS.release()
     return {'answer': result, 'version': new_version, 'trace_id': request_id}
 
 
 @app.post('/api/sessions/{session_id}/lead-drafts')
-def draft_lead(session_id: str, draft: LeadDraft, authorization: str = Header(default=''),
-               idempotency_key: str = Header(default='')):
+def draft_lead(
+    session_id: str,
+    draft: LeadDraft,
+    authorization: str = Header(default=''),
+    idempotency_key: str = Header(default=''),
+):
     authorize(session_id, authorization)
     with session_lock(session_id):
-        return prepare_lead(engine, session_id, idempotency_key, draft.name, draft.phone, draft.company)
+        return prepare_lead(
+            engine, session_id, idempotency_key, draft.name, draft.phone, draft.company
+        )
 
 
 @app.post('/api/sessions/{session_id}/leads')
-def lead(session_id: str, confirmation: LeadConfirmation, authorization: str = Header(default=''),
-         idempotency_key: str = Header(default='')):
+def lead(
+    session_id: str,
+    confirmation: LeadConfirmation,
+    authorization: str = Header(default=''),
+    idempotency_key: str = Header(default=''),
+):
     authorize(session_id, authorization)
     with session_lock(session_id):
-        return confirm_lead(engine, session_id, idempotency_key, confirmation.confirmation_token, confirmation.consent)
+        return confirm_lead(
+            engine,
+            session_id,
+            idempotency_key,
+            confirmation.confirmation_token,
+            confirmation.consent,
+        )
 
 
 @app.delete('/api/sessions/{session_id}/lead-drafts')
-def delete_draft(session_id: str, authorization: str = Header(default=''), idempotency_key: str = Header(default='')):
+def delete_draft(
+    session_id: str,
+    authorization: str = Header(default=''),
+    idempotency_key: str = Header(default=''),
+):
     authorize(session_id, authorization)
     with session_lock(session_id):
         return cancel_lead(engine, session_id, idempotency_key)
@@ -276,7 +388,9 @@ def delete_draft(session_id: str, authorization: str = Header(default=''), idemp
 @app.get('/api/admin/knowledge')
 def knowledge_list(role: str = Depends(require_role)):
     with engine.connect() as db:
-        rows = db.execute(select(knowledge).order_by(knowledge.c.created_at.desc())).mappings().all()
+        rows = (
+            db.execute(select(knowledge).order_by(knowledge.c.created_at.desc())).mappings().all()
+        )
     return [dict(row) for row in rows]
 
 
@@ -294,8 +408,12 @@ def debug_trace(trace_id: str, role: str = Depends(require_role)):
 
 
 @app.get('/api/admin/sessions/{session_id}/messages')
-def review_history(session_id: str, role: str = Depends(require_role),
-                   after_id: int = Query(default=0, ge=0), limit: int = Query(default=100, ge=1, le=100)):
+def review_history(
+    session_id: str,
+    role: str = Depends(require_role),
+    after_id: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=100),
+):
     with engine.begin() as db:
         exists = db.execute(select(sessions.c.id).where(sessions.c.id == session_id)).first()
         if exists is None:
@@ -303,7 +421,10 @@ def review_history(session_id: str, role: str = Depends(require_role),
         result = read_history(db, session_id, after_id, limit)
         db.execute(insert(audit).values(action='session.review', actor=role, subject=session_id))
     if role == 'reviewer':
-        return [{'id': item['id'], 'role': item['role'], 'characters': len(item['content'])} for item in result]
+        return [
+            {'id': item['id'], 'role': item['role'], 'characters': len(item['content'])}
+            for item in result
+        ]
     return result
 
 

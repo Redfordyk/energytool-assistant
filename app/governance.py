@@ -1,4 +1,5 @@
 """Governance of immutable knowledge archives and privileged operations."""
+
 import hashlib
 import hmac
 import os
@@ -8,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 from fastapi import Header, HTTPException
-from sqlalchemy import delete, insert, select, update, func, text
+from sqlalchemy import delete, func, insert, select, text, update
 
 from app.database import audit, knowledge, settings
 from core.rag import load_knowledge
@@ -60,7 +61,10 @@ def register(engine, actor):
     try:
         digest = hashlib.sha256()
         size = 0
-        with source.open('rb') as src, tempfile.NamedTemporaryFile(dir=root, delete=False) as target:
+        with (
+            source.open('rb') as src,
+            tempfile.NamedTemporaryFile(dir=root, delete=False) as target,
+        ):
             temp_name = target.name
             for block in iter(lambda: src.read(1024 * 1024), b''):
                 size += len(block)
@@ -75,9 +79,16 @@ def register(engine, actor):
         os.replace(temp_name, destination)
         temp_name = None
         with engine.begin() as db:
-            if db.execute(select(knowledge.c.sha256).where(knowledge.c.sha256 == revision)).first() is None:
-                db.execute(insert(knowledge).values(sha256=revision, status='pending', created_by=actor))
-                db.execute(insert(audit).values(action='knowledge.register', actor=actor, subject=revision))
+            if (
+                db.execute(select(knowledge.c.sha256).where(knowledge.c.sha256 == revision)).first()
+                is None
+            ):
+                db.execute(
+                    insert(knowledge).values(sha256=revision, status='pending', created_by=actor)
+                )
+                db.execute(
+                    insert(audit).values(action='knowledge.register', actor=actor, subject=revision)
+                )
         return {'sha256': revision, 'chunks': len(chunks)}
     except HTTPException:
         raise
@@ -110,18 +121,30 @@ def change_revision(engine, revision, actor, action):
         if action == 'approve':
             if row.status != 'pending':
                 raise HTTPException(409, 'Разрешено утверждать только ожидающую версию')
-            db.execute(update(knowledge).where(knowledge.c.sha256 == revision).values(status='approved', approved_by=actor, approved_at=func.now()))
+            db.execute(
+                update(knowledge)
+                .where(knowledge.c.sha256 == revision)
+                .values(status='approved', approved_by=actor, approved_at=func.now())
+            )
         elif action == 'activate':
             if row.status != 'approved':
                 raise HTTPException(409, 'Версия не утверждена')
             db.execute(delete(settings).where(settings.c.key == 'active_knowledge'))
             db.execute(insert(settings).values(key='active_knowledge', value=revision))
         elif action == 'revoke':
-            db.execute(update(knowledge).where(knowledge.c.sha256 == revision).values(status='revoked'))
-            db.execute(delete(settings).where(settings.c.key == 'active_knowledge', settings.c.value == revision))
+            db.execute(
+                update(knowledge).where(knowledge.c.sha256 == revision).values(status='revoked')
+            )
+            db.execute(
+                delete(settings).where(
+                    settings.c.key == 'active_knowledge', settings.c.value == revision
+                )
+            )
         else:
             raise ValueError('Unknown operation')
-        db.execute(insert(audit).values(action='knowledge.' + action, actor=actor, subject=revision))
+        db.execute(
+            insert(audit).values(action='knowledge.' + action, actor=actor, subject=revision)
+        )
 
 
 def active_knowledge(engine):
@@ -132,8 +155,11 @@ def active_knowledge(engine):
 def active_knowledge_snapshot(engine):
     """Return the revision and chunks from the same immutable archive snapshot."""
     with engine.connect() as db:
-        revision = db.execute(select(settings.c.value).join(knowledge, knowledge.c.sha256 == settings.c.value).where(
-            settings.c.key == 'active_knowledge', knowledge.c.status == 'approved')).scalar_one_or_none()
+        revision = db.execute(
+            select(settings.c.value)
+            .join(knowledge, knowledge.c.sha256 == settings.c.value)
+            .where(settings.c.key == 'active_knowledge', knowledge.c.status == 'approved')
+        ).scalar_one_or_none()
     if revision is None:
         return None, ()
     path = archive_path(revision)

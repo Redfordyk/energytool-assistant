@@ -1,8 +1,10 @@
 """Platform entry point: read CSV and supplied knowledge ZIP, write submission.csv."""
+
 import csv
 import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
 from core.rag import answer, load_knowledge
 
 

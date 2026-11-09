@@ -1,10 +1,12 @@
 """Bound request sizes, shared rate limits, and browser security headers."""
+
 import hashlib
 import hmac
 import os
 import secrets
 import time
 import uuid
+from typing import Any
 
 from sqlalchemy import case, delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -38,12 +40,19 @@ def consume(engine, client, category, limit, now=None):
     secret = os.getenv('RATE_LIMIT_SALT', '')
     key = hmac.new(secret.encode(), (category + '\0' + client).encode(), hashlib.sha256).hexdigest()
     with engine.begin() as db:
-        dialect_insert = pg_insert if db.dialect.name == 'postgresql' else sqlite_insert
-        statement = dialect_insert(rate_limits).values(key=key, window=window, count=1)
-        statement = statement.on_conflict_do_update(index_elements=['key'], set_={
-            'window': window,
-            'count': case((rate_limits.c.window == window, rate_limits.c.count + 1), else_=1),
-        }).returning(rate_limits.c.count)
+        values = {'key': key, 'window': window, 'count': 1}
+        statement: Any
+        if db.dialect.name == 'postgresql':
+            statement = pg_insert(rate_limits).values(**values)
+        else:
+            statement = sqlite_insert(rate_limits).values(**values)
+        statement = statement.on_conflict_do_update(
+            index_elements=['key'],
+            set_={
+                'window': window,
+                'count': case((rate_limits.c.window == window, rate_limits.c.count + 1), else_=1),
+            },
+        ).returning(rate_limits.c.count)
         count = db.execute(statement).scalar_one()
         if secrets.randbelow(512) == 0:
             db.execute(delete(rate_limits).where(rate_limits.c.window < window - 2))
@@ -66,14 +75,19 @@ class RequestGuard:
             if message['type'] == 'http.response.start':
                 headers = list(message.get('headers', []))
                 response_request_id = scope.get('state', {}).get('request_id') or request_id
-                headers.extend([
-                    (b'x-request-id', response_request_id.encode()),
-                    (b'x-content-type-options', b'nosniff'),
-                    (b'x-frame-options', b'DENY'),
-                    (b'referrer-policy', b'no-referrer'),
-                    (b'cache-control', b'no-store'),
-                    (b'content-security-policy', b"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"),
-                ])
+                headers.extend(
+                    [
+                        (b'x-request-id', response_request_id.encode()),
+                        (b'x-content-type-options', b'nosniff'),
+                        (b'x-frame-options', b'DENY'),
+                        (b'referrer-policy', b'no-referrer'),
+                        (b'cache-control', b'no-store'),
+                        (
+                            b'content-security-policy',
+                            b"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+                        ),
+                    ]
+                )
                 message['headers'] = headers
             await send(message)
 
@@ -82,18 +96,25 @@ class RequestGuard:
             client = scope.get('client')
             host = client[0] if client else 'unknown'
             try:
-                allowed, retry = await run_in_threadpool(consume, self.engine_provider(), host, *route_policy)
+                allowed, retry = await run_in_threadpool(
+                    consume, self.engine_provider(), host, *route_policy
+                )
             except SQLAlchemyError:
                 response = JSONResponse({'detail': 'Сервис временно недоступен'}, status_code=503)
                 await response(scope, receive, secure_send)
                 return
             if not allowed:
-                response = JSONResponse({'detail': 'Слишком много запросов'}, status_code=429,
-                                        headers={'Retry-After': str(retry)})
+                response = JSONResponse(
+                    {'detail': 'Слишком много запросов'},
+                    status_code=429,
+                    headers={'Retry-After': str(retry)},
+                )
                 await response(scope, receive, secure_send)
                 return
 
-        content_lengths = [value for name, value in scope.get('headers', []) if name.lower() == b'content-length']
+        content_lengths = [
+            value for name, value in scope.get('headers', []) if name.lower() == b'content-length'
+        ]
         if content_lengths:
             try:
                 if len(content_lengths) != 1 or not content_lengths[0].isdigit():

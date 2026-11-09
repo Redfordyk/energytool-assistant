@@ -1,4 +1,5 @@
 from alembic import context
+
 from app.database import make_engine, metadata
 
 config = context.config

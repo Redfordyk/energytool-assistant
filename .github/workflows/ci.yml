@@ -24,6 +24,11 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements-dev.txt
+      - run: ruff check app core evaluation migrations tests package_submission.py solution.py
+      - run: ruff format --check app core evaluation migrations tests package_submission.py solution.py
+      - run: mypy --check-untyped-defs app core solution.py
+      - run: bandit -q -ll -r app core solution.py
+      - run: pip-audit -r requirements-dev.txt
       - run: playwright install --with-deps chromium
       - run: alembic upgrade head
       - run: python -m pytest -q

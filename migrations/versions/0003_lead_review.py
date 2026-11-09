@@ -3,7 +3,9 @@
 Revision ID: 0003
 Revises: 0002
 """
+
 from alembic import op
+
 from app.database import lead_contexts, lead_drafts
 
 revision = '0003'

@@ -20,10 +20,17 @@ def test_semantic_search_finds_nonlexical_match_and_reuses_index():
 
     def handler(url, body):
         vectors = {'a\nодин': [1, 0], 'b\nдва': [0, 1], 'вопрос': [0, 1]}
-        return {'data': [{'index': i, 'embedding': vectors[text]} for i, text in enumerate(body['input'])]}
+        return {
+            'data': [
+                {'index': i, 'embedding': vectors[text]} for i, text in enumerate(body['input'])
+            ]
+        }
 
     client = FakeClient(handler)
-    assert semantic_rank(client, 'https://test-hybrid', 'key', 'model', 'вопрос', chunks, 2)[0] == chunks[1]
+    assert (
+        semantic_rank(client, 'https://test-hybrid', 'key', 'model', 'вопрос', chunks, 2)[0]
+        == chunks[1]
+    )
     semantic_rank(client, 'https://test-hybrid', 'key', 'model', 'вопрос', chunks, 2)
     assert len(client.calls) == 3  # One corpus batch, two query embeddings.
 
@@ -33,28 +40,45 @@ def test_fusion_and_reranker_reject_invalid_indices():
     assert fuse([[a, b], [b]], 2)[0] == b
     client = FakeClient(lambda url, body: {'results': [{'index': 8}]})
     import pytest
+
     with pytest.raises(ValueError):
         rerank(client, 'https://test', 'key', 'model', 'question', [a, b], 2)
 
 
 def test_verifier_requires_explicit_boolean_for_every_claim():
     claims = [{'text': 'Факт', 'quote': 'Подтверждающая цитата'}]
+
     def client_for(verdict):
         return FakeClient(lambda url, body: {'choices': [{'message': {'content': verdict}}]})
+
     assert verify_claims(client_for('{"supported":[true]}'), 'https://test', 'key', 'model', claims)
-    assert not verify_claims(client_for('{"supported":[false]}'), 'https://test', 'key', 'model', claims)
-    assert not verify_claims(client_for('{"supported":[1]}'), 'https://test', 'key', 'model', claims)
+    assert not verify_claims(
+        client_for('{"supported":[false]}'), 'https://test', 'key', 'model', claims
+    )
+    assert not verify_claims(
+        client_for('{"supported":[1]}'), 'https://test', 'key', 'model', claims
+    )
     assert not verify_claims(client_for('{"supported":[]}'), 'https://test', 'key', 'model', claims)
 
 
 def test_exhausted_embedding_budget_does_not_call_remote_service(monkeypatch):
     import pytest
+
     from core import hybrid
 
     monkeypatch.setattr(hybrid.time, 'monotonic', lambda: 10.0)
     client = FakeClient(lambda url, body: {})
     with pytest.raises(TimeoutError):
-        semantic_rank(client, 'https://budget-test', 'key', 'model', 'вопрос', [Chunk('a', 'текст')], 1, deadline=9.0)
+        semantic_rank(
+            client,
+            'https://budget-test',
+            'key',
+            'model',
+            'вопрос',
+            [Chunk('a', 'текст')],
+            1,
+            deadline=9.0,
+        )
     assert not client.calls
     assert bounded_timeout(12.0, 6) == 2.0
 
@@ -64,6 +88,7 @@ def test_answer_falls_back_to_lexical_search_but_requires_verification(monkeypat
     monkeypatch.setenv('LLM_API_KEY', 'fake')
     monkeypatch.delenv('EMBEDDER_BASE_URL', raising=False)
     monkeypatch.delenv('RERANKER_BASE_URL', raising=False)
+
     class Client:
         def __init__(self, **kwargs):
             self.chat_calls = 0
@@ -79,13 +104,25 @@ def test_answer_falls_back_to_lexical_search_but_requires_verification(monkeypat
             if not url.endswith('/chat/completions'):
                 return httpx.Response(503, request=request)
             self.chat_calls += 1
-            content = ('{"claims":[{"text":"Срок составляет 10 дней.","source":1,"quote":"Срок составляет 10 дней при согласовании."}]}'
-                       if self.chat_calls == 1 else '{"supported":[true]}')
-            return httpx.Response(200, request=request, json={'choices': [{'message': {'content': content}}]})
+            content = (
+                '{"claims":[{"text":"Срок составляет 10 дней.","source":1,"quote":"Срок составляет 10 дней при согласовании."}]}'
+                if self.chat_calls == 1
+                else '{"supported":[true]}'
+            )
+            return httpx.Response(
+                200, request=request, json={'choices': [{'message': {'content': content}}]}
+            )
 
     monkeypatch.setattr(httpx, 'Client', Client)
     diagnostics = {}
-    assert answer('срок', [Chunk('test', 'Срок составляет 10 дней при согласовании.')], diagnostics=diagnostics) == 'Срок составляет 10 дней.'
+    assert (
+        answer(
+            'срок',
+            [Chunk('test', 'Срок составляет 10 дней при согласовании.')],
+            diagnostics=diagnostics,
+        )
+        == 'Срок составляет 10 дней.'
+    )
     assert diagnostics['query_plan'] == 'bm25'
     assert diagnostics['reranker'] == 'not_configured'
     assert diagnostics['claim_verification'] is True

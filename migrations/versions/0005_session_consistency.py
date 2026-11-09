@@ -3,7 +3,9 @@
 Revision ID: 0005
 Revises: 0004
 """
+
 from alembic import op
+
 from app.database import message_requests, session_states
 
 revision = '0005'

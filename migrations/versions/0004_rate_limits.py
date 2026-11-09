@@ -3,7 +3,9 @@
 Revision ID: 0004
 Revises: 0003
 """
+
 from alembic import op
+
 from app.database import rate_limits
 
 revision = '0004'
