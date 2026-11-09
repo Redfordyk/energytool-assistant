@@ -75,9 +75,12 @@ def test_review_and_save_lead_in_browser(tmp_path):
             page = browser.new_page()
             page.goto(url)
             expect(page.locator('link[href="/assets/tokens.css"]')).to_have_count(1)
-            assert page.locator('body').evaluate(
-                '(element) => getComputedStyle(element).getPropertyValue("--color-brand").trim()'
-            ) == '#e30611'
+            assert (
+                page.locator('body').evaluate(
+                    '(element) => getComputedStyle(element).getPropertyValue("--color-brand").trim()'
+                )
+                == '#e30611'
+            )
             expect(
                 page.get_by_role('heading', name='Интеллектуальная система энергоконсалтинга')
             ).to_be_visible()
@@ -112,9 +115,12 @@ def test_review_and_save_lead_in_browser(tmp_path):
             page.goto(url + '/admin')
             expect(page.get_by_role('heading', name='База знаний')).to_be_visible()
             expect(page.locator('link[href="/assets/tokens.css"]')).to_have_count(1)
-            assert page.locator('.admin-card').first.evaluate(
-                '(element) => getComputedStyle(element).backgroundColor'
-            ) == 'rgb(255, 255, 255)'
+            assert (
+                page.locator('.admin-card').first.evaluate(
+                    '(element) => getComputedStyle(element).backgroundColor'
+                )
+                == 'rgb(255, 255, 255)'
+            )
             page.set_viewport_size({'width': 375, 'height': 812})
             assert page.locator('body').evaluate(
                 '(element) => element.scrollWidth <= window.innerWidth'
