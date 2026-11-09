@@ -26,7 +26,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: playwright install --with-deps chromium
       - run: alembic upgrade head
-      - run: pytest -q
+      - run: python -m pytest -q
         env:
           RUN_E2E: '1'
       - run: docker build -t energytool .
