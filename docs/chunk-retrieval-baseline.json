@@ -1,0 +1,303 @@
+{
+  "metrics": {
+    "questions": 18,
+    "evidence_anchors": 19,
+    "chunks": 292,
+    "knowledge_sha256": "d5f1bbba0094d1eb7e4918bd7a1d37c621ae5cd498010ca2cba041ddddafd66a",
+    "questions_sha256": "2adab2f1781b8b12c50230bf82a1af2e74259fc09ff6f998eb5ae68ef72ac4ea",
+    "gold_chunks_sha256": "67781d5e06bfc2de1792df675d3a9bac9bd6091696b710f69bc2a31929f8c897",
+    "retrieval_config": {
+      "algorithm": "BM25",
+      "token_prefix_length": 5,
+      "k1": 0.7,
+      "b": 0.25,
+      "token_aliases": [
+        "симк* -> simcard",
+        "сим -> simcard",
+        "sim -> simcard",
+        "фот* -> photo"
+      ],
+      "query_expansion_revision": "ru-energy-domain-v1"
+    },
+    "query_hit@1": 0.7777777777777778,
+    "evidence_recall@1": 0.7368421052631579,
+    "query_hit@5": 1.0,
+    "evidence_recall@5": 1.0,
+    "query_hit@10": 1.0,
+    "evidence_recall@10": 1.0,
+    "mrr@10": 0.8888888888888888,
+    "unanswered_evidence@10": []
+  },
+  "queries": [
+    {
+      "id": "1",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "2",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "3",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "4",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 2,
+      "evidence_hits": {
+        "1": 0,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 0.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "5",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "6",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "7",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 2,
+      "evidence_hits": {
+        "1": 0,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 0.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "8",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 2,
+      "evidence_hits": {
+        "1": 0,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 0.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "9",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "10",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "11",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "12",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "13",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "14",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "15",
+      "relevant_evidence_count": 2,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 2,
+        "10": 2
+      },
+      "evidence_recall": {
+        "1": 0.5,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "16",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 2,
+      "evidence_hits": {
+        "1": 0,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 0.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "17",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    },
+    {
+      "id": "18",
+      "relevant_evidence_count": 1,
+      "first_relevant_rank": 1,
+      "evidence_hits": {
+        "1": 1,
+        "5": 1,
+        "10": 1
+      },
+      "evidence_recall": {
+        "1": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      }
+    }
+  ]
+}

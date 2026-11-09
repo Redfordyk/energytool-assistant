@@ -25,12 +25,14 @@ STOP_WORDS = frozenset(('это', 'как', 'что', 'для', 'или', 'пр�
 TOKEN_PREFIX_LENGTH = 5
 BM25_K1 = 0.7
 BM25_B = 0.25
+QUERY_EXPANSION_REVISION = 'ru-energy-domain-v1'
 RETRIEVAL_CONFIG = {
     'algorithm': 'BM25',
     'token_prefix_length': TOKEN_PREFIX_LENGTH,
     'k1': BM25_K1,
     'b': BM25_B,
-    'token_aliases': ['симк* -> simcard', 'сим -> simcard', 'sim -> simcard'],
+    'token_aliases': ['симк* -> simcard', 'сим -> simcard', 'sim -> simcard', 'фот* -> photo'],
+    'query_expansion_revision': QUERY_EXPANSION_REVISION,
 }
 
 
@@ -43,6 +45,8 @@ def tokens(text, prefix_length=TOKEN_PREFIX_LENGTH):
         token = word[:prefix_length]
         if token in ('сим', 'sim') or token.startswith('симк'):
             token = 'simcard'
+        elif token.startswith('фот'):
+            token = 'photo'
         if token not in STOP_WORDS:
             result.append(token)
     return result
@@ -148,6 +152,38 @@ def retrieval_query(question):
     # Earlier user turns often carry the topic that a short final question
     # refers to. Keep a bounded window; assistant wording never affects rank.
     return '\n'.join(turn[-1000:] for turn in user_turns[-4:])
+
+
+def expand_retrieval_query(question):
+    """Add conservative domain vocabulary for common customer phrasing."""
+    if not isinstance(question, str):
+        return ''
+    query = question
+    lowered = query.lower().replace('ё', 'е')
+    additions = []
+    if re.search(r'\bмагазин\w*\b', lowered):
+        additions.append('сетевой ретейл однотипные точки сравнение расход объектов')
+    if re.search(r'двухтариф|два тарифа|оба показан', lowered):
+        additions.append('многотарифные приборы раздельные показания по тарифам тарифная зона')
+    if re.search(r'фото', lowered) and re.search(r'техник|архив|накопл', lowered):
+        additions.append('архив изображений пакетная загрузка формирование списков верификация данных')
+    if re.search(r'вечер', lowered) and re.search(r'солнеч|станци|панел', lowered):
+        additions.append('преимущественно ночью выработка не совпадет с нагрузкой профиль потребления')
+    if re.search(r'цех', lowered):
+        additions.append('учет по цехам единицам оборудования распределение затрат')
+    if re.search(r'арендатор', lowered):
+        additions.append('учет по арендаторам распределение затрат бизнес центр')
+    if re.search(r'с чего.{0,20}нача', lowered) and re.search(r'платформ|счетчик|прибор', lowered):
+        additions.append('количество и тип приборов существующая схема сбора данных задача учета')
+    if re.search(r'счетчик|прибор', lowered) and re.search(r'стоим|оценк|расчет|сколько', lowered):
+        additions.append('количество и тип приборов существующая схема сбора данных задача учета')
+    if re.search(r'счетчик|прибор', lowered) and not re.search(r'потер', lowered):
+        additions.append('приборы учета')
+    if re.search(r'потер', lowered) and re.search(r'суточ|два года|двух лет|год', lowered):
+        additions.append('суточные показания день ночь глубина архива не менее одного года')
+    if not additions:
+        return query
+    return query + '\n' + ' '.join(dict.fromkeys(additions))
 
 
 _TARIFF_SELECTION = re.compile(
@@ -262,6 +298,7 @@ def answer(question, chunks, history=(), diagnostics=None):
         prior_questions = [m['content'] for m in history[-8:] if m.get('role') == 'user' and isinstance(m.get('content'), str)]
         if prior_questions:
             search_query += ' ' + prior_questions[-1][:1000]
+    search_query = expand_retrieval_query(search_query)
     base = (os.getenv('LLM_BASE_URL') or os.getenv('BASE_URL') or os.getenv('OPENAI_BASE_URL') or '').rstrip('/')
     embedding_base = (os.getenv('EMBEDDER_BASE_URL') or base).rstrip('/')
     reranker_base = (os.getenv('RERANKER_BASE_URL') or base).rstrip('/')

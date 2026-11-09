@@ -11,13 +11,15 @@
       "token_aliases": [
         "симк* -> simcard",
         "сим -> simcard",
-        "sim -> simcard"
-      ]
+        "sim -> simcard",
+        "фот* -> photo"
+      ],
+      "query_expansion_revision": "ru-energy-domain-v1"
     },
     "recall@1": 0.8888888888888888,
     "recall@5": 1.0,
     "recall@10": 1.0,
-    "mrr@10": 0.9351851851851851,
+    "mrr@10": 0.9444444444444444,
     "misses@10": [],
     "source_level_only": true
   },
@@ -138,21 +140,22 @@
       ],
       "ranked": [
         "20-products/22-askue.md",
-        "10-energy/10-market.md",
         "10-energy/17-faq.md",
+        "10-energy/10-market.md",
         "20-products/25-meter-reading.md",
         "00-reference/01-numbers-and-indicators.md",
         "20-products/24-losses.md",
-        "20-products/26-general.md",
         "10-energy/11-price-categories.md",
-        "20-products/20-portfolio.md",
-        "10-energy/15-microgeneration.md",
         "20-products/21-orem.md",
-        "10-energy/12-power-thresholds.md",
-        "20-products/23-solar.md",
+        "20-products/26-general.md",
         "00-reference/02-product-scope-and-limits.md",
+        "20-products/20-portfolio.md",
         "00-reference/03-calculation-and-requests.md",
-        "00-reference/00-product-map.md"
+        "00-reference/00-product-map.md",
+        "20-products/23-solar.md",
+        "10-energy/15-microgeneration.md",
+        "10-energy/12-power-thresholds.md",
+        "10-energy/13-metering.md"
       ],
       "first_relevant_rank": 1
     },
@@ -162,27 +165,26 @@
         "20-products/22-askue.md"
       ],
       "ranked": [
-        "20-products/20-portfolio.md",
-        "20-products/26-general.md",
         "20-products/22-askue.md",
+        "10-energy/17-faq.md",
+        "20-products/20-portfolio.md",
+        "00-reference/02-product-scope-and-limits.md",
+        "20-products/23-solar.md",
+        "20-products/26-general.md",
+        "20-products/25-meter-reading.md",
         "10-energy/15-microgeneration.md",
         "10-energy/10-market.md",
+        "00-reference/00-product-map.md",
         "10-energy/11-price-categories.md",
+        "10-energy/13-metering.md",
         "10-energy/14-tariffs.md",
         "00-reference/03-calculation-and-requests.md",
-        "10-energy/17-faq.md",
-        "20-products/21-orem.md",
-        "20-products/23-solar.md",
-        "20-products/25-meter-reading.md",
-        "00-reference/01-numbers-and-indicators.md",
-        "10-energy/16-regulation.md",
-        "00-reference/02-product-scope-and-limits.md",
         "10-energy/12-power-thresholds.md",
-        "10-energy/13-metering.md",
-        "00-reference/00-product-map.md",
-        "20-products/24-losses.md"
+        "20-products/21-orem.md",
+        "10-energy/16-regulation.md",
+        "00-reference/01-numbers-and-indicators.md"
       ],
-      "first_relevant_rank": 3
+      "first_relevant_rank": 1
     },
     {
       "id": "7",
@@ -190,21 +192,26 @@
         "20-products/22-askue.md"
       ],
       "ranked": [
-        "20-products/22-askue.md",
-        "20-products/23-solar.md",
-        "20-products/21-orem.md",
-        "20-products/25-meter-reading.md",
-        "20-products/26-general.md",
-        "20-products/24-losses.md",
         "20-products/20-portfolio.md",
+        "20-products/22-askue.md",
+        "20-products/21-orem.md",
+        "20-products/23-solar.md",
+        "20-products/24-losses.md",
+        "10-energy/11-price-categories.md",
+        "00-reference/00-product-map.md",
+        "10-energy/10-market.md",
         "10-energy/17-faq.md",
         "00-reference/01-numbers-and-indicators.md",
-        "10-energy/10-market.md",
-        "10-energy/11-price-categories.md",
+        "20-products/25-meter-reading.md",
+        "20-products/26-general.md",
+        "10-energy/15-microgeneration.md",
+        "10-energy/13-metering.md",
+        "10-energy/14-tariffs.md",
         "10-energy/16-regulation.md",
-        "10-energy/14-tariffs.md"
+        "00-reference/02-product-scope-and-limits.md",
+        "00-reference/03-calculation-and-requests.md"
       ],
-      "first_relevant_rank": 1
+      "first_relevant_rank": 2
     },
     {
       "id": "8",
@@ -213,19 +220,24 @@
         "20-products/25-meter-reading.md"
       ],
       "ranked": [
-        "00-reference/01-numbers-and-indicators.md",
         "20-products/25-meter-reading.md",
-        "20-products/20-portfolio.md",
         "10-energy/13-metering.md",
-        "20-products/22-askue.md",
-        "10-energy/11-price-categories.md",
-        "20-products/23-solar.md",
-        "20-products/24-losses.md",
         "10-energy/17-faq.md",
+        "10-energy/11-price-categories.md",
+        "20-products/22-askue.md",
         "00-reference/02-product-scope-and-limits.md",
-        "00-reference/00-product-map.md",
+        "20-products/20-portfolio.md",
         "20-products/26-general.md",
-        "00-reference/03-calculation-and-requests.md"
+        "00-reference/01-numbers-and-indicators.md",
+        "20-products/23-solar.md",
+        "00-reference/00-product-map.md",
+        "20-products/24-losses.md",
+        "00-reference/03-calculation-and-requests.md",
+        "20-products/21-orem.md",
+        "10-energy/15-microgeneration.md",
+        "10-energy/10-market.md",
+        "10-energy/14-tariffs.md",
+        "10-energy/12-power-thresholds.md"
       ],
       "first_relevant_rank": 1
     },
@@ -236,16 +248,21 @@
       ],
       "ranked": [
         "20-products/25-meter-reading.md",
-        "00-reference/01-numbers-and-indicators.md",
-        "00-reference/02-product-scope-and-limits.md",
-        "10-energy/17-faq.md",
-        "20-products/22-askue.md",
         "20-products/24-losses.md",
+        "10-energy/17-faq.md",
+        "00-reference/01-numbers-and-indicators.md",
+        "20-products/22-askue.md",
+        "00-reference/02-product-scope-and-limits.md",
         "20-products/26-general.md",
+        "20-products/20-portfolio.md",
         "20-products/23-solar.md",
-        "00-reference/03-calculation-and-requests.md",
+        "00-reference/00-product-map.md",
         "10-energy/13-metering.md",
-        "00-reference/00-product-map.md"
+        "00-reference/03-calculation-and-requests.md",
+        "20-products/21-orem.md",
+        "10-energy/11-price-categories.md",
+        "10-energy/12-power-thresholds.md",
+        "10-energy/16-regulation.md"
       ],
       "first_relevant_rank": 1
     },
@@ -367,53 +384,52 @@
       ],
       "ranked": [
         "20-products/23-solar.md",
+        "20-products/20-portfolio.md",
+        "10-energy/17-faq.md",
         "10-energy/15-microgeneration.md",
         "10-energy/11-price-categories.md",
         "10-energy/10-market.md",
-        "10-energy/17-faq.md",
         "20-products/21-orem.md",
         "00-reference/01-numbers-and-indicators.md",
+        "00-reference/03-calculation-and-requests.md",
         "00-reference/00-product-map.md",
         "20-products/22-askue.md",
+        "10-energy/14-tariffs.md",
         "00-reference/02-product-scope-and-limits.md",
-        "20-products/20-portfolio.md",
         "20-products/25-meter-reading.md",
         "20-products/26-general.md",
-        "10-energy/14-tariffs.md",
         "10-energy/12-power-thresholds.md",
-        "00-reference/03-calculation-and-requests.md",
-        "20-products/24-losses.md",
-        "10-energy/16-regulation.md"
+        "10-energy/13-metering.md",
+        "20-products/24-losses.md"
       ],
       "first_relevant_rank": 1
     },
     {
       "id": "15",
       "expected": [
+        "00-reference/03-calculation-and-requests.md",
         "20-products/22-askue.md",
         "20-products/25-meter-reading.md"
       ],
       "ranked": [
+        "20-products/25-meter-reading.md",
+        "00-reference/03-calculation-and-requests.md",
         "10-energy/17-faq.md",
         "20-products/22-askue.md",
         "20-products/20-portfolio.md",
-        "20-products/24-losses.md",
-        "20-products/26-general.md",
-        "20-products/25-meter-reading.md",
-        "20-products/21-orem.md",
-        "20-products/23-solar.md",
-        "10-energy/11-price-categories.md",
         "00-reference/00-product-map.md",
-        "10-energy/15-microgeneration.md",
-        "00-reference/03-calculation-and-requests.md",
+        "00-reference/02-product-scope-and-limits.md",
+        "20-products/26-general.md",
+        "20-products/24-losses.md",
+        "20-products/21-orem.md",
+        "10-energy/11-price-categories.md",
         "00-reference/01-numbers-and-indicators.md",
-        "10-energy/10-market.md",
-        "10-energy/14-tariffs.md",
+        "20-products/23-solar.md",
         "10-energy/12-power-thresholds.md",
         "10-energy/13-metering.md",
-        "00-reference/02-product-scope-and-limits.md"
+        "10-energy/15-microgeneration.md"
       ],
-      "first_relevant_rank": 2
+      "first_relevant_rank": 1
     },
     {
       "id": "16",
@@ -422,26 +438,23 @@
         "20-products/24-losses.md"
       ],
       "ranked": [
+        "00-reference/03-calculation-and-requests.md",
         "20-products/24-losses.md",
         "20-products/20-portfolio.md",
-        "00-reference/03-calculation-and-requests.md",
+        "10-energy/11-price-categories.md",
         "20-products/21-orem.md",
+        "20-products/25-meter-reading.md",
+        "10-energy/12-power-thresholds.md",
         "20-products/23-solar.md",
         "20-products/22-askue.md",
-        "10-energy/11-price-categories.md",
-        "10-energy/12-power-thresholds.md",
+        "20-products/26-general.md",
+        "00-reference/00-product-map.md",
+        "00-reference/02-product-scope-and-limits.md",
         "10-energy/10-market.md",
         "00-reference/01-numbers-and-indicators.md",
-        "20-products/26-general.md",
-        "00-reference/02-product-scope-and-limits.md",
-        "20-products/25-meter-reading.md",
-        "00-reference/00-product-map.md",
-        "10-energy/13-metering.md",
-        "10-energy/17-faq.md",
-        "10-energy/14-tariffs.md",
-        "10-energy/16-regulation.md"
+        "10-energy/13-metering.md"
       ],
-      "first_relevant_rank": 1
+      "first_relevant_rank": 2
     },
     {
       "id": "17",
@@ -478,25 +491,24 @@
         "20-products/23-solar.md"
       ],
       "ranked": [
-        "20-products/23-solar.md",
-        "10-energy/15-microgeneration.md",
-        "20-products/26-general.md",
-        "10-energy/13-metering.md",
-        "20-products/21-orem.md",
-        "10-energy/10-market.md",
-        "20-products/24-losses.md",
-        "20-products/25-meter-reading.md",
-        "20-products/22-askue.md",
-        "10-energy/11-price-categories.md",
-        "00-reference/02-product-scope-and-limits.md",
-        "00-reference/01-numbers-and-indicators.md",
-        "10-energy/17-faq.md",
         "00-reference/03-calculation-and-requests.md",
-        "10-energy/12-power-thresholds.md",
-        "10-energy/14-tariffs.md",
         "00-reference/00-product-map.md",
+        "20-products/26-general.md",
+        "20-products/23-solar.md",
+        "20-products/22-askue.md",
+        "20-products/21-orem.md",
         "20-products/20-portfolio.md",
-        "10-energy/16-regulation.md"
+        "10-energy/15-microgeneration.md",
+        "00-reference/02-product-scope-and-limits.md",
+        "10-energy/13-metering.md",
+        "20-products/24-losses.md",
+        "10-energy/10-market.md",
+        "10-energy/17-faq.md",
+        "10-energy/11-price-categories.md",
+        "20-products/25-meter-reading.md",
+        "10-energy/14-tariffs.md",
+        "00-reference/01-numbers-and-indicators.md",
+        "10-energy/12-power-thresholds.md"
       ],
       "first_relevant_rank": 1
     }
