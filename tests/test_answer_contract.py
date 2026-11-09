@@ -76,9 +76,12 @@ def test_answer_binds_server_evidence_when_model_returns_source_only(monkeypatch
     result = answer('срок поставки', [Chunk('terms.md', source_text)])
 
     verifier = [body for url, body in gateway.calls if url.endswith('/chat/completions')][1]
+    generation = [body for url, body in gateway.calls if url.endswith('/chat/completions')][0]
     evidence = json.loads(verifier['messages'][1]['content'])
     assert result == 'Срок поставки — 10 дней при согласовании.'
     assert evidence == [{'claim': 'Срок поставки — 10 дней при согласовании.', 'quote': source_text}]
+    assert 'одно короткое утверждение' in generation['messages'][0]['content']
+    assert verifier['max_tokens'] == 512
 
 
 def test_json_mode_is_sent_to_generation_and_verifier_when_enabled(monkeypatch, gateway_env):
