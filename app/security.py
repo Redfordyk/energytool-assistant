@@ -60,12 +60,14 @@ class RequestGuard:
             await self.app(scope, receive, send)
             return
         request_id = uuid.uuid4().hex
+        scope.setdefault('state', {})['request_id'] = request_id
 
         async def secure_send(message):
             if message['type'] == 'http.response.start':
                 headers = list(message.get('headers', []))
+                response_request_id = scope.get('state', {}).get('request_id') or request_id
                 headers.extend([
-                    (b'x-request-id', request_id.encode()),
+                    (b'x-request-id', response_request_id.encode()),
                     (b'x-content-type-options', b'nosniff'),
                     (b'x-frame-options', b'DENY'),
                     (b'referrer-policy', b'no-referrer'),

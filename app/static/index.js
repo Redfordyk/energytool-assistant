@@ -126,8 +126,8 @@ document.querySelector('#chat').onsubmit = event => {
     questionInput.value = '';
     status.textContent = '';
     clearPreview();
-    try { await hydrate(); }
-    catch (_) { add('user', text); add('assistant', result.answer); status.textContent = 'Ответ получен; историю не удалось обновить.'; }
+    try { await hydrate(); status.textContent = result.trace_id ? 'Ответ готов. Трасса: ' + result.trace_id : ''; }
+    catch (_) { add('user', text); add('assistant', result.answer); status.textContent = result.trace_id ? 'Историю не удалось обновить. Трасса: ' + result.trace_id : 'Ответ получен; историю не удалось обновить.'; }
   });
 };
 

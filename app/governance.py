@@ -125,13 +125,21 @@ def change_revision(engine, revision, actor, action):
 
 
 def active_knowledge(engine):
+    revision, chunks = active_knowledge_snapshot(engine)
+    return chunks if revision is not None and chunks else None
+
+
+def active_knowledge_snapshot(engine):
+    """Return the revision and chunks from the same immutable archive snapshot."""
     with engine.connect() as db:
         revision = db.execute(select(settings.c.value).join(knowledge, knowledge.c.sha256 == settings.c.value).where(
             settings.c.key == 'active_knowledge', knowledge.c.status == 'approved')).scalar_one_or_none()
     if revision is None:
-        return None
+        return None, ()
     path = archive_path(revision)
     try:
-        return load_knowledge(path) if file_hash(path) == revision else None
+        if file_hash(path) != revision:
+            return None, ()
+        return revision, load_knowledge(path)
     except (OSError, ValueError, zipfile.BadZipFile):
-        return None
+        return None, ()
