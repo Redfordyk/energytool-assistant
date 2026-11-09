@@ -4,18 +4,20 @@ import secrets
 import threading
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, StrictBool
-from sqlalchemy import insert, select
+from pydantic import BaseModel, Field, StrictBool, StrictInt
+from sqlalchemy import func, insert, select, update
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.database import audit, knowledge, make_engine, messages, sessions
+from app.database import audit, knowledge, make_engine, message_requests, messages, session_states, sessions
 from app.governance import active_knowledge, change_revision, register, require_admin, require_role
-from app.lead_service import cancel as cancel_lead, confirm as confirm_lead, lock_session, prepare as prepare_lead
+from app.lead_service import cancel as cancel_lead, confirm as confirm_lead, lock_session, prepare as prepare_lead, validate_key
 from app.security import RequestGuard
 from core.rag import answer
 
@@ -48,6 +50,7 @@ def authorize(session_id, authorization):
 
 class Message(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
+    session_version: StrictInt = Field(ge=0)
 
 
 class LeadDraft(BaseModel):
@@ -95,40 +98,100 @@ def create_session():
     session_id, token = secrets.token_urlsafe(24), secrets.token_urlsafe(32)
     with engine.begin() as db:
         db.execute(insert(sessions).values(id=session_id, token_hash=hashlib.sha256(token.encode()).hexdigest()))
-    return {'id': session_id, 'token': token}
+        db.execute(insert(session_states).values(session_id=session_id, version=0, closed=False))
+    return {'id': session_id, 'token': token, 'version': 0}
 
 
-def read_history(db, session_id):
-    rows = db.execute(select(messages.c.role, messages.c.content).where(messages.c.session_id == session_id).order_by(messages.c.id))
-    return [{'role': row.role, 'content': row.content} for row in rows]
+def ensure_state(db, session_id):
+    """Initialize versions for sessions created before the state migration."""
+    state = db.execute(select(session_states).where(session_states.c.session_id == session_id)).first()
+    if state is not None:
+        return state
+    count = db.execute(select(func.count()).select_from(messages).where(
+        messages.c.session_id == session_id, messages.c.role == 'assistant')).scalar_one()
+    dialect_insert = pg_insert if db.dialect.name == 'postgresql' else sqlite_insert
+    db.execute(dialect_insert(session_states).values(session_id=session_id, version=count, closed=False)
+               .on_conflict_do_nothing(index_elements=['session_id']))
+    return db.execute(select(session_states).where(session_states.c.session_id == session_id)).one()
+
+
+def read_history(db, session_id, after_id=0, limit=100):
+    rows = db.execute(select(messages.c.id, messages.c.role, messages.c.content).where(
+        messages.c.session_id == session_id, messages.c.id > after_id).order_by(messages.c.id).limit(limit))
+    return [{'id': row.id, 'role': row.role, 'content': row.content} for row in rows]
+
+
+def recent_history(db, session_id):
+    rows = db.execute(select(messages.c.role, messages.c.content).where(
+        messages.c.session_id == session_id).order_by(messages.c.id.desc()).limit(8)).all()
+    return [{'role': row.role, 'content': row.content} for row in reversed(rows)]
+
+
+@app.get('/api/sessions/{session_id}')
+def session_state(session_id: str, authorization: str = Header(default='')):
+    authorize(session_id, authorization)
+    with session_lock(session_id), engine.begin() as db:
+        lock_session(db, session_id)
+        state = ensure_state(db, session_id)
+        return {'id': session_id, 'version': state.version, 'closed': state.closed}
+
+
+@app.post('/api/sessions/{session_id}/close')
+def close_session(session_id: str, authorization: str = Header(default='')):
+    authorize(session_id, authorization)
+    with session_lock(session_id), engine.begin() as db:
+        lock_session(db, session_id)
+        state = ensure_state(db, session_id)
+        if not state.closed:
+            db.execute(update(session_states).where(session_states.c.session_id == session_id)
+                       .values(closed=True, version=state.version + 1))
+        return {'status': 'closed'}
 
 
 @app.get('/api/sessions/{session_id}/messages')
-def history(session_id: str, authorization: str = Header(default='')):
+def history(session_id: str, authorization: str = Header(default=''),
+            after_id: int = Query(default=0, ge=0), limit: int = Query(default=100, ge=1, le=100)):
     authorize(session_id, authorization)
     with engine.connect() as db:
-        return read_history(db, session_id)
+        return read_history(db, session_id, after_id, limit)
 
 
 @app.post('/api/sessions/{session_id}/messages')
-def chat(session_id: str, message: Message, authorization: str = Header(default='')):
+def chat(session_id: str, message: Message, authorization: str = Header(default=''),
+         idempotency_key: str = Header(default='')):
     authorize(session_id, authorization)
+    validate_key(idempotency_key)
     question = message.text.strip()
     if not question:
         raise HTTPException(422, 'Введите сообщение')
-    if not CHAT_SLOTS.acquire(blocking=False):
-        raise HTTPException(503, 'Сервис занят, повторите запрос позже', headers={'Retry-After': '5'})
-    try:
-        with session_lock(session_id), engine.begin() as db:
-            lock_session(db, session_id)
-            previous = read_history(db, session_id)
+    with session_lock(session_id), engine.begin() as db:
+        lock_session(db, session_id)
+        prior = db.execute(select(message_requests).where(
+            message_requests.c.session_id == session_id, message_requests.c.request_key == idempotency_key)).first()
+        if prior:
+            if prior.question != question or prior.request_version != message.session_version:
+                raise HTTPException(409, 'Ключ уже использован для другого сообщения')
+            return {'answer': prior.answer, 'version': prior.result_version}
+        state = ensure_state(db, session_id)
+        if state.closed:
+            raise HTTPException(409, 'Диалог закрыт')
+        if state.version != message.session_version:
+            raise HTTPException(409, 'История изменилась; обновите диалог')
+        if not CHAT_SLOTS.acquire(blocking=False):
+            raise HTTPException(503, 'Сервис занят, повторите запрос позже', headers={'Retry-After': '5'})
+        try:
+            previous = recent_history(db, session_id)
             chunks = active_knowledge(engine)
             result = answer(question, chunks or (), previous)
             db.execute(insert(messages), [{'session_id': session_id, 'role': 'user', 'content': question},
                                           {'session_id': session_id, 'role': 'assistant', 'content': result}])
-    finally:
-        CHAT_SLOTS.release()
-    return {'answer': result}
+            new_version = state.version + 1
+            db.execute(insert(message_requests).values(session_id=session_id, request_key=idempotency_key,
+                       question=question, answer=result, request_version=state.version, result_version=new_version))
+            db.execute(update(session_states).where(session_states.c.session_id == session_id).values(version=new_version))
+        finally:
+            CHAT_SLOTS.release()
+    return {'answer': result, 'version': new_version}
 
 
 @app.post('/api/sessions/{session_id}/lead-drafts')
@@ -162,15 +225,16 @@ def knowledge_list(role: str = Depends(require_role)):
 
 
 @app.get('/api/admin/sessions/{session_id}/messages')
-def review_history(session_id: str, role: str = Depends(require_role)):
+def review_history(session_id: str, role: str = Depends(require_role),
+                   after_id: int = Query(default=0, ge=0), limit: int = Query(default=100, ge=1, le=100)):
     with engine.begin() as db:
         exists = db.execute(select(sessions.c.id).where(sessions.c.id == session_id)).first()
         if exists is None:
             raise HTTPException(404, 'Диалог не найден')
-        result = read_history(db, session_id)
+        result = read_history(db, session_id, after_id, limit)
         db.execute(insert(audit).values(action='session.review', actor=role, subject=session_id))
     if role == 'reviewer':
-        return [{'role': item['role'], 'characters': len(item['content'])} for item in result]
+        return [{'id': item['id'], 'role': item['role'], 'characters': len(item['content'])} for item in result]
     return result
 
 

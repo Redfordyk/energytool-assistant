@@ -8,7 +8,7 @@ import phonenumbers
 from fastapi import HTTPException
 from sqlalchemy import delete, insert, select, text, update
 
-from app.database import audit, lead_consents, lead_contexts, lead_drafts, leads, messages, settings
+from app.database import audit, lead_consents, lead_contexts, lead_drafts, leads, messages, session_states, settings
 
 DRAFT_LIFETIME_SECONDS = 15 * 60
 KEY_PATTERN = re.compile(r'^[A-Za-z0-9_-]{8,100}$')
@@ -37,6 +37,12 @@ def lock_session(db, session_id):
         db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': lock_id})
 
 
+def require_open_session(db, session_id):
+    closed = db.execute(select(session_states.c.closed).where(session_states.c.session_id == session_id)).scalar_one_or_none()
+    if closed:
+        raise HTTPException(409, 'Диалог закрыт')
+
+
 def prepare(engine, session_id, key, name, phone, company):
     validate_key(key)
     name, company = name.strip(), company.strip()
@@ -46,6 +52,7 @@ def prepare(engine, session_id, key, name, phone, company):
     confirmation = secrets.token_urlsafe(32)
     with engine.begin() as db:
         lock_session(db, session_id)
+        require_open_session(db, session_id)
         db.execute(delete(lead_drafts).where(lead_drafts.c.session_id == session_id,
                    lead_drafts.c.lead_id.is_(None), lead_drafts.c.expires_at < int(time.time())))
         previous = db.execute(select(lead_drafts.c.lead_id).where(
@@ -82,6 +89,7 @@ def confirm(engine, session_id, key, token, consent):
             raise HTTPException(409, 'Подготовьте и проверьте заявку заново')
         if draft.lead_id is not None:
             return {'id': draft.lead_id, 'status': 'saved'}
+        require_open_session(db, session_id)
         if draft.expires_at < int(time.time()):
             raise HTTPException(409, 'Время подтверждения истекло; проверьте заявку заново')
         lead_id = db.execute(insert(leads).values(session_id=session_id, request_key=key,

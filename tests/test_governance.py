@@ -25,7 +25,7 @@ def test_knowledge_lifecycle_and_access(tmp_path, monkeypatch):
     session = client.post('/api/sessions').json()
     session_history = '/api/admin/sessions/' + session['id'] + '/messages'
     assert client.get(session_history).status_code == 401
-    client.post('/api/sessions/' + session['id'] + '/messages', headers={'Authorization': 'Bearer ' + session['token']}, json={'text': 'Приватный текст'})
+    client.post('/api/sessions/' + session['id'] + '/messages', headers={'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'message-key-1'}, json={'text': 'Приватный текст', 'session_version': 0})
     assert 'Приватный текст' not in client.get(session_history, headers=reviewer).text
     assert 'Приватный текст' in client.get(session_history, headers=admin).text
     assert client.post(root + '/register', headers=reviewer).status_code == 403

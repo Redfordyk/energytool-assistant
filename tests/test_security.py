@@ -83,7 +83,7 @@ def test_overloaded_chat_rejects_without_recording_message(tmp_path, monkeypatch
     first, second = client.post('/api/sessions').json(), client.post('/api/sessions').json()
     def request(session):
         return client.post('/api/sessions/' + session['id'] + '/messages',
-                           headers={'Authorization': 'Bearer ' + session['token']}, json={'text': 'Вопрос'})
+                           headers={'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'message-key-1'}, json={'text': 'Вопрос', 'session_version': 0})
     with ThreadPoolExecutor(max_workers=2) as pool:
         future = pool.submit(request, first)
         assert started.wait(timeout=3)

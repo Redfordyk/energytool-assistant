@@ -1,6 +1,6 @@
 import httpx
 
-from core.hybrid import fuse, rerank, semantic_rank
+from core.hybrid import bounded_timeout, fuse, rerank, semantic_rank
 from core.rag import Chunk, answer, verify_claims
 
 
@@ -9,7 +9,7 @@ class FakeClient:
         self.handler = handler
         self.calls = []
 
-    def post(self, url, headers, json):
+    def post(self, url, headers, json, **kwargs):
         self.calls.append((url, json))
         payload = self.handler(url, json)
         return httpx.Response(200, request=httpx.Request('POST', url), json=payload)
@@ -47,6 +47,18 @@ def test_verifier_requires_explicit_boolean_for_every_claim():
     assert not verify_claims(client_for('{"supported":[]}'), 'https://test', 'key', 'model', claims)
 
 
+def test_exhausted_embedding_budget_does_not_call_remote_service(monkeypatch):
+    import pytest
+    from core import hybrid
+
+    monkeypatch.setattr(hybrid.time, 'monotonic', lambda: 10.0)
+    client = FakeClient(lambda url, body: {})
+    with pytest.raises(TimeoutError):
+        semantic_rank(client, 'https://budget-test', 'key', 'model', 'вопрос', [Chunk('a', 'текст')], 1, deadline=9.0)
+    assert not client.calls
+    assert bounded_timeout(12.0, 6) == 2.0
+
+
 def test_answer_falls_back_to_lexical_search_but_requires_verification(monkeypatch):
     monkeypatch.setenv('LLM_BASE_URL', 'https://test-answer')
     monkeypatch.setenv('LLM_API_KEY', 'fake')
@@ -60,7 +72,7 @@ def test_answer_falls_back_to_lexical_search_but_requires_verification(monkeypat
         def __exit__(self, *args):
             pass
 
-        def post(self, url, headers, json):
+        def post(self, url, headers, json, **kwargs):
             request = httpx.Request('POST', url)
             if not url.endswith('/chat/completions'):
                 return httpx.Response(503, request=request)

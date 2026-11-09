@@ -2,6 +2,7 @@
 import hashlib
 import math
 import threading
+import time
 from collections import OrderedDict
 
 import httpx
@@ -12,10 +13,19 @@ _MAX_CACHED_INDEXES = 2
 _BATCH_SIZE = 32
 
 
-def _vectors(client, base, key, model, texts):
+def bounded_timeout(deadline, cap):
+    if deadline is None:
+        return cap
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError('Request time budget exhausted')
+    return min(cap, remaining)
+
+
+def _vectors(client, base, key, model, texts, deadline=None):
     result = client.post(
         base + '/embeddings', headers={'Authorization': 'Bearer ' + key},
-        json={'model': model, 'input': texts},
+        json={'model': model, 'input': texts}, timeout=bounded_timeout(deadline, 6),
     )
     result.raise_for_status()
     data = result.json()['data']
@@ -38,7 +48,7 @@ def _vectors(client, base, key, model, texts):
     return tuple(vectors)
 
 
-def _index(client, base, key, model, chunks):
+def _index(client, base, key, model, chunks, deadline=None):
     digest = hashlib.sha256()
     for chunk in chunks:
         for part in (chunk.source, chunk.text):
@@ -47,25 +57,30 @@ def _index(client, base, key, model, chunks):
             digest.update(encoded)
     cache_key = (base, model, hashlib.sha256(key.encode()).digest(), digest.digest())
     # Serialize index builds so concurrent questions do not re-embed the corpus.
-    with _LOCK:
+    acquired = _LOCK.acquire(timeout=bounded_timeout(deadline, 6))
+    if not acquired:
+        raise TimeoutError('Index build is busy')
+    try:
         if cache_key in _CACHE:
             _CACHE.move_to_end(cache_key)
             return _CACHE[cache_key]
         vectors = []
         for start in range(0, len(chunks), _BATCH_SIZE):
             texts = [chunk.source + '\n' + chunk.text for chunk in chunks[start:start + _BATCH_SIZE]]
-            vectors.extend(_vectors(client, base, key, model, texts))
+            vectors.extend(_vectors(client, base, key, model, texts, deadline))
         if vectors and len({len(vector) for vector in vectors}) != 1:
             raise ValueError('Inconsistent index dimensions')
         _CACHE[cache_key] = tuple(vectors)
         while len(_CACHE) > _MAX_CACHED_INDEXES:
             _CACHE.popitem(last=False)
         return _CACHE[cache_key]
+    finally:
+        _LOCK.release()
 
 
-def semantic_rank(client, base, key, model, question, chunks, limit):
-    vectors = _index(client, base, key, model, chunks)
-    query = _vectors(client, base, key, model, [question])[0]
+def semantic_rank(client, base, key, model, question, chunks, limit, deadline=None):
+    vectors = _index(client, base, key, model, chunks, deadline)
+    query = _vectors(client, base, key, model, [question], deadline)[0]
     if any(len(vector) != len(query) for vector in vectors):
         raise ValueError('Query dimension differs from index')
     scores = [(sum(a * b for a, b in zip(query, vector)), i) for i, vector in enumerate(vectors)]
@@ -84,12 +99,12 @@ def fuse(rankings, limit, rank_constant=60):
     return sorted(scores, key=lambda chunk: (-scores[chunk], chunk.source, chunk.text))[:limit]
 
 
-def rerank(client, base, key, model, question, chunks, limit):
+def rerank(client, base, key, model, question, chunks, limit, deadline=None):
     response = client.post(base + '/rerank', headers={'Authorization': 'Bearer ' + key}, json={
         'model': model, 'query': question,
         'documents': [chunk.source + '\n' + chunk.text for chunk in chunks],
         'top_n': min(limit, len(chunks)),
-    })
+    }, timeout=bounded_timeout(deadline, 3))
     response.raise_for_status()
     payload = response.json()
     items = payload.get('results', payload.get('data'))
@@ -101,4 +116,4 @@ def rerank(client, base, key, model, question, chunks, limit):
     return [chunks[i] for i in indices[:limit]]
 
 
-RETRIEVAL_ERRORS = (httpx.HTTPError, KeyError, TypeError, ValueError, OverflowError)
+RETRIEVAL_ERRORS = (httpx.HTTPError, KeyError, TypeError, ValueError, OverflowError, TimeoutError)

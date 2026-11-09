@@ -13,7 +13,7 @@ import pytest
 
 @pytest.mark.skipif(os.getenv('RUN_E2E') != '1', reason='Set RUN_E2E=1 and install Playwright browser')
 def test_review_and_save_lead_in_browser(tmp_path):
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import expect, sync_playwright
 
     root = Path(__file__).resolve().parents[1]
     env = os.environ.copy()
@@ -44,6 +44,20 @@ def test_review_and_save_lead_in_browser(tmp_path):
             browser = playwright.chromium.launch(headless=True, **({'executable_path': executable} if executable else {}))
             page = browser.new_page()
             page.goto(url)
+            def lose_first_response(route):
+                if route.request.method == 'POST':
+                    assert route.fetch().status == 200
+                    route.abort('failed')
+                else:
+                    route.continue_()
+            pattern = '**/api/sessions/*/messages'
+            page.route(pattern, lose_first_response)
+            page.locator('#question').fill('Здравствуйте')
+            page.get_by_role('button', name='Отправить').click()
+            expect(page.locator('#status')).not_to_be_empty()
+            page.unroute(pattern, lose_first_response)
+            page.get_by_role('button', name='Отправить').click()
+            expect(page.locator('#messages p')).to_have_count(2)
             page.locator('#name').fill('Тестовый Клиент')
             page.locator('#phone').fill('8 999 123-45-67')
             page.locator('#company').fill('Тестовая компания')

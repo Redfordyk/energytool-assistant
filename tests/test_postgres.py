@@ -2,6 +2,7 @@ import os
 import secrets
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 
 import pytest
 from fastapi.testclient import TestClient
@@ -59,4 +60,23 @@ def test_postgres_rate_limit_across_connections():
     with ThreadPoolExecutor(max_workers=12) as pool:
         results = list(pool.map(lambda _: consume(engine, client, 'messages', 5, now=1200), range(20)))
     assert sum(allowed for allowed, _ in results) == 5
+    engine.dispose()
+
+
+@pytest.mark.skipif(not os.getenv('TEST_DATABASE_URL'), reason='PostgreSQL test database not configured')
+def test_postgres_message_retries_across_workers(monkeypatch):
+    engine = make_engine(os.environ['TEST_DATABASE_URL'])
+    monkeypatch.setattr(main, 'engine', engine)
+    # Emulate separate workers: only PostgreSQL's advisory lock is shared.
+    monkeypatch.setattr(main, 'session_lock', lambda _session: nullcontext())
+    client = TestClient(main.app)
+    session = client.post('/api/sessions').json()
+    url = '/api/sessions/' + session['id'] + '/messages'
+    headers = {'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'message-key-123'}
+    payload = {'text': 'Здравствуйте', 'session_version': 0}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        responses = list(pool.map(lambda _: client.post(url, headers=headers, json=payload), range(8)))
+    assert all(response.status_code == 200 for response in responses)
+    assert len({response.json()['answer'] for response in responses}) == 1
+    assert len(client.get(url, headers=headers).json()) == 2
     engine.dispose()

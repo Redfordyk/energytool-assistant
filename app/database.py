@@ -1,13 +1,22 @@
 """Database schema and connections shared by the web application and migrations."""
 import os
 
-from sqlalchemy import (Column, DateTime, ForeignKey, Integer, MetaData,
+from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer, MetaData,
                         String, Table, Text, UniqueConstraint, create_engine, event, func)
 
 metadata = MetaData()
 sessions = Table('sessions', metadata,
     Column('id', String(64), primary_key=True),
     Column('token_hash', String(64), nullable=False))
+session_states = Table('session_states', metadata,
+    Column('session_id', String(64), ForeignKey('sessions.id'), primary_key=True),
+    Column('version', Integer, nullable=False, default=0),
+    Column('closed', Boolean, nullable=False, default=False))
+message_requests = Table('message_requests', metadata,
+    Column('session_id', String(64), ForeignKey('sessions.id'), primary_key=True),
+    Column('request_key', String(100), primary_key=True),
+    Column('question', Text, nullable=False), Column('answer', Text, nullable=False),
+    Column('request_version', Integer, nullable=False), Column('result_version', Integer, nullable=False))
 messages = Table('messages', metadata,
     Column('id', Integer, primary_key=True, autoincrement=True),
     Column('session_id', String(64), ForeignKey('sessions.id'), nullable=False),
@@ -60,4 +69,5 @@ def make_engine(url=None):
         @event.listens_for(engine, 'connect')
         def enable_foreign_keys(connection, _record):
             connection.execute('PRAGMA foreign_keys=ON')
+            connection.execute('PRAGMA journal_mode=WAL')
     return engine
