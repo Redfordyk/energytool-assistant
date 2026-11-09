@@ -10,6 +10,16 @@ const status = document.querySelector('#status');
 const preview = document.querySelector('#preview');
 const leadForm = document.querySelector('#lead');
 const questionInput = document.querySelector('#question');
+const serviceStatus = document.querySelector('#service-status');
+
+fetch('/health/ready', {cache: 'no-store'}).then(response => {
+  const available = response.ok;
+  serviceStatus.lastChild.textContent = available ? ' Сервис доступен' : ' Сервис временно недоступен';
+  serviceStatus.classList.toggle('is-unavailable', !available);
+}).catch(() => {
+  serviceStatus.lastChild.textContent = ' Сервис временно недоступен';
+  serviceStatus.classList.add('is-unavailable');
+});
 
 function clearPreview() {
   confirmation = null;
@@ -27,13 +37,32 @@ function savePending(value) {
   else sessionStorage.removeItem('pendingMessage');
 }
 
+function showWelcome() {
+  const row = document.createElement('article');
+  row.className = 'message message-assistant welcome-message';
+  const avatar = document.createElement('span');
+  avatar.className = 'avatar avatar-ai';
+  avatar.textContent = 'AI';
+  avatar.setAttribute('aria-hidden', 'true');
+  const bubble = document.createElement('div');
+  bubble.className = 'message-bubble';
+  const author = document.createElement('span');
+  author.className = 'message-author';
+  author.textContent = 'Energytool Assistant';
+  const text = document.createElement('p');
+  text.textContent = 'Здравствуйте! Я ваш консультант по энергетическим решениям. Задайте вопрос по тарифам, оптимизации энергопотребления или технологическому присоединению.';
+  bubble.append(author, text);
+  row.append(avatar, bubble);
+  messages.replaceChildren(row);
+}
+
 async function start(resetForm = true) {
   const response = await fetch('/api/sessions', {method: 'POST'});
   if (!response.ok) throw Error('Не удалось создать диалог');
   session = await response.json();
   saveSession();
   savePending(null);
-  messages.replaceChildren();
+  showWelcome();
   questionInput.value = '';
   requestKey = crypto.randomUUID();
   clearPreview();
@@ -43,10 +72,23 @@ async function start(resetForm = true) {
 }
 
 function add(role, text) {
-  const p = document.createElement('p');
-  p.className = role;
-  p.textContent = (role === 'user' ? 'Вы: ' : 'Консультант: ') + text;
-  messages.append(p);
+  const row = document.createElement('article');
+  row.className = 'message message-' + (role === 'user' ? 'user' : 'assistant');
+  const avatar = document.createElement('span');
+  avatar.className = 'avatar ' + (role === 'user' ? 'avatar-user' : 'avatar-ai');
+  avatar.textContent = role === 'user' ? 'Вы' : 'AI';
+  avatar.setAttribute('aria-hidden', 'true');
+  const bubble = document.createElement('div');
+  bubble.className = 'message-bubble';
+  const author = document.createElement('span');
+  author.className = 'message-author';
+  author.textContent = role === 'user' ? 'Вы' : 'Energytool Assistant';
+  const content = document.createElement('p');
+  content.textContent = text;
+  bubble.append(author, content);
+  row.append(avatar, bubble);
+  messages.append(row);
+  row.scrollIntoView({block: 'nearest'});
 }
 
 async function get(path) {
@@ -70,7 +112,8 @@ async function hydrate() {
   session.closed = state.closed;
   saveSession();
   messages.replaceChildren();
-  rows.forEach(row => add(row.role, row.content));
+  if (rows.length) rows.forEach(row => add(row.role, row.content));
+  else showWelcome();
   if (state.closed) status.textContent = 'Диалог закрыт. Начните новый.';
 }
 
@@ -101,6 +144,18 @@ async function run(action, allowUnready = false) {
 }
 
 document.querySelector('#new').onclick = () => run(() => start(), true);
+document.querySelectorAll('[data-question]').forEach(button => {
+  button.addEventListener('click', () => {
+    questionInput.value = button.dataset.question;
+    questionInput.focus();
+  });
+});
+questionInput.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    document.querySelector('#chat').requestSubmit();
+  }
+});
 document.querySelector('#chat').onsubmit = event => {
   event.preventDefault();
   run(async () => {

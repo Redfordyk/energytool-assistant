@@ -45,6 +45,12 @@ def test_review_and_save_lead_in_browser(tmp_path):
             browser = playwright.chromium.launch(headless=True, **({'executable_path': executable} if executable else {}))
             page = browser.new_page()
             page.goto(url)
+            expect(page.get_by_role('heading', name='Интеллектуальная система энергоконсалтинга')).to_be_visible()
+            expect(page.get_by_role('heading', name='Заявка специалисту')).to_be_visible()
+            expect(page.locator('.topic-chip')).to_have_count(3)
+            page.set_viewport_size({'width': 375, 'height': 812})
+            assert page.locator('body').evaluate('(element) => element.scrollWidth <= window.innerWidth')
+            page.set_viewport_size({'width': 1280, 'height': 900})
             def lose_first_response(route):
                 if route.request.method == 'POST':
                     assert route.fetch().status == 200
@@ -76,7 +82,7 @@ def test_review_and_save_lead_in_browser(tmp_path):
             assert '+79991234567' in page.locator('#preview-text').inner_text()
             assert 'Тестовая компания' in page.locator('#preview-text').inner_text()
             page.locator('#consent').check()
-            page.get_by_role('button', name='Сохранить заявку').click()
+            page.locator('#confirm').click()
             page.get_by_role('status').get_by_text('Заявка сохранена.').wait_for()
             browser.close()
     finally:

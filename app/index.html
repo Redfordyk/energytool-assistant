@@ -1,5 +1,111 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Energytool — консультант</title>
-<link rel="stylesheet" href="/assets/index.css"></head>
-<body><main><h1>Energytool</h1><p>Консультант по энергетическим решениям</p><button id="new">Новый диалог</button><section id="messages" aria-live="polite"></section><form id="chat"><label for="question">Ваш вопрос</label><textarea id="question" required maxlength="4000" rows="3"></textarea><p><button>Отправить</button></p></form><section><h2>Заявка специалисту</h2><p>Для демонстрации используйте вымышленные контакты. Заявка сохраняется локально и никуда не отправляется.</p><form id="lead"><label>ФИО<input id="name" required minlength="2" maxlength="120"></label><label>Телефон<input id="phone" required type="tel" maxlength="30"></label><label>Компания<input id="company" required minlength="2" maxlength="160"></label><button>Проверить заявку</button></form><div id="preview" hidden><h3>Проверьте данные</h3><p id="preview-text"></p><label class="check"><input id="consent" type="checkbox"> Подтверждаю сохранение показанных данных</label><button id="confirm">Сохранить заявку</button><button id="cancel" type="button">Отменить</button></div><p id="status" role="status"></p></section></main>
-<script src="/assets/index.js" defer></script></body></html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f7fa">
+  <meta name="description" content="Energytool — консультации по энергоэффективности и технологическому присоединению.">
+  <title>Energytool — консультант по энергетическим решениям</title>
+  <link rel="stylesheet" href="/assets/index.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="Energytool — главная">
+        <span class="brand-mark" aria-hidden="true">E</span>
+        <span class="brand-copy">
+          <span class="brand-title">Energytool <span class="brand-tag">AI энергетика</span></span>
+          <span class="brand-subtitle">Консультант по энергетическим решениям</span>
+        </span>
+      </a>
+      <div class="header-actions">
+        <span class="expert-status" id="service-status" role="status"><span class="status-dot"></span> Проверяем статус</span>
+        <button class="button button-primary button-new" id="new" type="button"><span aria-hidden="true">＋</span> Новый диалог</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="intro-banner" aria-label="О сервисе">
+      <span class="intro-icon" aria-hidden="true">ϟ</span>
+      <div class="intro-copy">
+        <h1>Интеллектуальная система энергоконсалтинга</h1>
+        <p>Оптимизируйте тарифы, снижайте неэффективные потери и получайте рекомендации по энергоснабжению.</p>
+      </div>
+      <span class="model-badge">Проверенные рекомендации</span>
+    </section>
+
+    <div class="workspace-grid">
+      <section class="chat-column" aria-label="Консультация">
+        <section class="card chat-card" aria-labelledby="chat-title">
+          <div class="section-heading chat-heading">
+            <span class="heading-icon" aria-hidden="true">●</span>
+            <div>
+              <h2 id="chat-title">Сессия консультирования</h2>
+              <p>Анализ профиля энергопотребления</p>
+            </div>
+            <span class="session-label">Защищённый диалог</span>
+          </div>
+          <div id="messages" class="messages" aria-live="polite" aria-relevant="additions text">
+            <article class="message message-assistant welcome-message">
+              <span class="avatar avatar-ai" aria-hidden="true">AI</span>
+              <div class="message-bubble">
+                <span class="message-author">ENERGYTOOL ASSISTANT</span>
+                <p>Здравствуйте! Я ваш консультант по энергетическим решениям. Задайте вопрос по тарифам, оптимизации энергопотребления или технологическому присоединению.</p>
+              </div>
+            </article>
+          </div>
+          <div class="quick-topics" aria-label="Популярные темы">
+            <span class="quick-label">Быстрые темы:</span>
+            <button type="button" class="topic-chip" data-question="Как оптимизировать пиковые нагрузки?">Оптимизация пиковых нагрузок</button>
+            <button type="button" class="topic-chip" data-question="Как рассчитать необходимую мощность объекта?">Расчёт мощности</button>
+            <button type="button" class="topic-chip" data-question="Какие данные нужны для выбора ценовой категории тарифа?">Тарифы и ценовые категории</button>
+          </div>
+        </section>
+
+        <section class="card composer-card">
+          <form id="chat">
+            <div class="composer-heading">
+              <label for="question">Ваш вопрос</label>
+              <span>Shift + Enter для переноса строки</span>
+            </div>
+            <textarea id="question" required maxlength="4000" rows="3" placeholder="Опишите вашу задачу или вопрос по энергоснабжению..."></textarea>
+            <div class="composer-footer">
+              <span class="privacy-note"><span aria-hidden="true">✓</span> Контекст диалога сохранён</span>
+              <button class="button button-primary send-button" type="submit">Отправить <span aria-hidden="true">➤</span></button>
+            </div>
+          </form>
+        </section>
+        <p id="status" class="status-message" role="status" aria-live="polite"></p>
+      </section>
+
+      <aside class="card lead-card" aria-labelledby="lead-title">
+        <div class="lead-accent" aria-hidden="true"></div>
+        <div class="lead-content">
+          <div class="lead-kicker"><span aria-hidden="true">♙</span> Инженерная экспертиза</div>
+          <h2 id="lead-title">Заявка специалисту</h2>
+          <div class="notice-box"><span aria-hidden="true">ⓘ</span><p>Для демонстрации используйте вымышленные контакты. Заявка сохраняется локально и никуда не отправляется.</p></div>
+          <form id="lead" class="lead-form">
+            <label for="name">ФИО<input id="name" required minlength="2" maxlength="120" autocomplete="name" placeholder="Иванов Иван Иванович"></label>
+            <label for="phone">Телефон<input id="phone" required type="tel" maxlength="30" autocomplete="tel" placeholder="+7 (999) 000-00-00"></label>
+            <label for="company">Компания<input id="company" required minlength="2" maxlength="160" autocomplete="organization" placeholder="ООО Энергохолдинг"></label>
+            <button class="button button-primary lead-submit" type="submit">Проверить заявку <span aria-hidden="true">⊙</span></button>
+          </form>
+          <div id="preview" class="preview-panel" hidden>
+            <h3>Проверьте данные</h3>
+            <p id="preview-text"></p>
+            <label class="consent-row"><input id="consent" type="checkbox"> <span>Согласен на моделирование расчёта и обработку демонстрационных параметров</span></label>
+            <div class="preview-actions">
+              <button id="confirm" class="button button-primary" type="button">Подтвердить и сохранить</button>
+              <button id="cancel" class="button button-secondary" type="button">Отменить</button>
+            </div>
+          </div>
+          <div class="lead-footnote"><span><span aria-hidden="true">♙</span> Локальная песочница</span><span>Демонстрационный режим</span></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+  <footer class="site-footer"><span><strong>Energytool</strong> — цифровая экосистема сервисов энергоэффективности</span><span>Разработано в корпоративном стандарте МТС</span></footer>
+  <script src="/assets/index.js" defer></script>
+</body>
+</html>
