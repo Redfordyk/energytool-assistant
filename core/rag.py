@@ -159,28 +159,30 @@ _VOLTAGE_VALUE = re.compile(r'\b(?:0[.,]4|\d{1,3})\s*(?:кв|кv|киловол�
 
 def tariff_clarification(question, history=()):
     """Ask for one missing tariff input before making a recommendation."""
-    if not _TARIFF_SELECTION.search(question):
-        return None
     recent = list(history)[-8:]
-    assistant_prompts = [
-        message['content'].lower() for message in recent
-        if message.get('role') == 'assistant' and isinstance(message.get('content'), str)
-    ]
-    is_tariff_follow_up = any(
-        'максимальная мощность объекта указана' in content
-        or 'уровень напряжения указан' in content
-        for content in assistant_prompts
-    )
+    last_assistant = next((message['content'].lower() for message in reversed(recent)
+                           if message.get('role') == 'assistant' and isinstance(message.get('content'), str)), '')
+    is_awaiting_power = 'максимальная мощность объекта указана' in last_assistant
+    is_awaiting_voltage = 'уровень напряжения указан' in last_assistant
+    if not _TARIFF_SELECTION.search(question) and not (is_awaiting_power or is_awaiting_voltage):
+        return None
     user_context = question
-    if is_tariff_follow_up:
+    if is_awaiting_power or is_awaiting_voltage:
         user_context += '\n' + '\n'.join(
             message['content'] for message in recent
             if message.get('role') == 'user' and isinstance(message.get('content'), str)
         )
-    if not _POWER_VALUE.search(user_context):
+    has_power = bool(_POWER_VALUE.search(user_context))
+    has_voltage = bool(_VOLTAGE_VALUE.search(user_context))
+    if is_awaiting_power and not has_power:
         return ('Чтобы определить подходящую ценовую категорию, какая максимальная мощность '
                 'объекта указана в договоре или счёте?')
-    if not _VOLTAGE_VALUE.search(user_context):
+    if is_awaiting_voltage and not has_voltage:
+        return 'Какой уровень напряжения указан в договоре или счёте объекта?'
+    if not has_power:
+        return ('Чтобы определить подходящую ценовую категорию, какая максимальная мощность '
+                'объекта указана в договоре или счёте?')
+    if not has_voltage:
         return 'Какой уровень напряжения указан в договоре или счёте объекта?'
     return None
 

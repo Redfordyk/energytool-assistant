@@ -40,13 +40,16 @@ def test_tariff_recommendation_collects_one_missing_input_at_a_time():
     history = [
         {'role': 'user', 'content': question},
         {'role': 'assistant', 'content': first},
-        {'role': 'user', 'content': 'Максимальная мощность 670 кВт.'},
     ]
-    assert tariff_clarification('Продолжаем выбирать тариф', history) == (
+    power_reply = 'Максимальная мощность 670 кВт.'
+    assert tariff_clarification(power_reply, history) == (
         'Какой уровень напряжения указан в договоре или счёте объекта?')
 
-    history.append({'role': 'user', 'content': 'Уровень напряжения 10 кВ.'})
-    assert tariff_clarification('Продолжаем выбирать тариф', history) is None
+    history.extend([
+        {'role': 'user', 'content': power_reply},
+        {'role': 'assistant', 'content': 'Какой уровень напряжения указан в договоре или счёте объекта?'},
+    ])
+    assert tariff_clarification('10 кВ', history) is None
     assert tariff_clarification('Сколько стоит подключение?') is None
     unrelated_history = [{'role': 'user', 'content': 'Нагрузка объекта 670 кВт.'}]
     assert 'максимальная мощность' in tariff_clarification(question, unrelated_history)
