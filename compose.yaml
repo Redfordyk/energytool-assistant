@@ -30,6 +30,7 @@ services:
       DATA_DIR: /app/data
       KNOWLEDGE_DIR: /knowledge
       DATABASE_URL: postgresql+psycopg://energytool:${POSTGRES_PASSWORD}@db:5432/energytool
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
 volumes:
   postgres-data:
   knowledge-data:
