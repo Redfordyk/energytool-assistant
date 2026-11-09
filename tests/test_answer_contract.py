@@ -233,6 +233,41 @@ def test_measurement_only_in_assistant_transcript_cannot_ground_a_claim(monkeypa
     assert '600 кВт' not in generation_request['messages'][-1]['content']
 
 
+@pytest.mark.parametrize(
+    'first,second',
+    [
+        (
+            'Система поддерживает модуль удаленного управления объектом.',
+            'Система не поддерживает модуль удаленного управления объектом.',
+        ),
+        (
+            'Срок подключения составляет 10 рабочих дней.',
+            'Срок подключения составляет 15 рабочих дней.',
+        ),
+        (
+            'Максимальная мощность объекта составляет 10 кВт при подключении.',
+            'Максимальная мощность объекта составляет 10 МВт при подключении.',
+        ),
+    ],
+)
+def test_conflicting_retrieved_evidence_fails_closed_before_model_call(
+    monkeypatch, gateway_env, first, second
+):
+    gateway = ModelGatewayStub('{"claims":[]}', '{"supported":[]}')
+    install_gateway(monkeypatch, gateway)
+    diagnostic = {}
+
+    result = answer(
+        'Поддерживается модуль удаленного управления объектом и какой срок подключения?',
+        [Chunk('first.md', first), Chunk('second.md', second)],
+        diagnostics=diagnostic,
+    )
+
+    assert result == FALLBACK
+    assert diagnostic['fallback_reason'] == 'conflicting_evidence'
+    assert gateway.chat_calls == 0
+
+
 def test_user_number_does_not_make_unsupported_product_claim_valid(monkeypatch, gateway_env):
     question = 'Вы гарантируете экономию 90% каждому клиенту?'
     quote = 'Гарантированная экономия клиентам не обещается.'

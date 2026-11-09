@@ -24,6 +24,7 @@ The threat model is defined by SEC-01 through SEC-20 in the technical specificat
 | SEC-18 Memory poisoning | `test_100_multistep_sessions_do_not_share_context_or_authority` | 100 scenarios verify no cross-session memory or context. |
 | SEC-19 Model output injection | `test_answer_rejects_unanswerable_or_invalid_claim_payloads` | Extra fields, bad citations, and unsupported claims fail closed. |
 | SEC-20 Unauthorized index swap | `test_knowledge_lifecycle_and_access` | Archive tampering invalidates the active revision. |
+| AC-04 Conflicting source data | `test_conflicting_retrieved_evidence_fails_closed_before_model_call` | Near-identical statements with opposite polarity or numeric values fail closed; general semantic conflicts and owner-defined source priority remain unverified. |
 
 ## Current deterministic adversarial batch
 
@@ -31,6 +32,7 @@ The threat model is defined by SEC-01 through SEC-20 in the technical specificat
 
 ## Remaining validation
 
+- AC-04 has a conservative pre-generation check for near-identical retrieved statements with opposite polarity or different numeric values. It is covered by `test_conflicting_retrieved_evidence_fails_closed_before_model_call`; this is not a general semantic contradiction detector and does not replace an owner-approved source-priority policy.
 - Run the 100 multi-step cases against the actual configured model only after data-transfer authorization and a bounded-cost plan are confirmed.
 - Add independent human-labeled answer-correctness and unanswerable sets; retrieval anchors alone do not establish answer correctness.
 - Repeat resource and recovery tests against the production PostgreSQL deployment under agreed load limits.

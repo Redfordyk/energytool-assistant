@@ -514,6 +514,48 @@ def validate_response(raw, sources):
     return ' '.join(claim['text'] for claim in claims) if claims else None
 
 
+_EVIDENCE_NEGATION = re.compile(
+    r'\b(?:не|нет|без|невозмож\w*|запрещ\w*|отсутств\w*)\b', re.IGNORECASE
+)
+_EVIDENCE_VALUE = re.compile(
+    r'(?<![\w])\d+(?:[.,]\d+)?\s*(?:(?:квт|мвт|кв|мв|вт|в|руб(?:\.|ля|лей)?|'
+    r'дн(?:я|ей|\.)?|час(?:а|ов)?|мин(?:ут(?:а|ы)?)?|сек(?:унд(?:а|ы)?)?|'
+    r'мес(?:яц(?:а|ев)?)?|год(?:а|ов)?)(?![а-яё])|%)?',
+    re.IGNORECASE,
+)
+
+
+def has_conflicting_evidence(sources):
+    """Detect near-identical evidence statements with opposite polarity or values.
+
+    This intentionally detects only close textual matches. It is a conservative
+    guardrail, not a general natural-language contradiction classifier.
+    """
+    statements = []
+    for source in sources:
+        for sentence in re.split(r'(?<=[.!?;])\s+|[\r\n]+', source.text):
+            normalized = sentence.casefold().replace('ё', 'е')
+            negated = bool(_EVIDENCE_NEGATION.search(normalized))
+            values = tuple(_EVIDENCE_VALUE.findall(normalized))
+            content = _EVIDENCE_VALUE.sub(' ', normalized)
+            content = _EVIDENCE_NEGATION.sub(' ', content)
+            words = [word for word in TOKEN.findall(content) if word not in STOP_WORDS]
+            signature = frozenset(words)
+            if len(signature) < 4:
+                continue
+            statements.append((signature, negated, values))
+
+    for index, (signature, negated, values) in enumerate(statements):
+        for other_signature, other_negated, other_values in statements[index + 1 :]:
+            union = signature | other_signature
+            similarity = len(signature & other_signature) / len(union)
+            if similarity < 0.9:
+                continue
+            if negated != other_negated or (values and other_values and values != other_values):
+                return True
+    return False
+
+
 def answer(question, chunks, history=(), diagnostics=None):
     started = time.monotonic()
 
@@ -656,6 +698,8 @@ def answer(question, chunks, history=(), diagnostics=None):
                     c.source + ':' + hashlib.sha256(c.text.encode('utf-8')).hexdigest()[:12]
                     for c in sources
                 ]
+            if has_conflicting_evidence(sources):
+                return finish(FALLBACK, 'conflicting_evidence')
             context = '\n\n'.join(f'[{i + 1}] {c.source}\n{c.text}' for i, c in enumerate(sources))
             history_user_turns = [
                 turn[-1000:]
