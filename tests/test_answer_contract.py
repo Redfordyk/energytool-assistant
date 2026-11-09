@@ -81,6 +81,7 @@ def test_answer_binds_server_evidence_when_model_returns_source_only(monkeypatch
     assert result == 'Срок поставки — 10 дней при согласовании.'
     assert evidence == [{'claim': 'Срок поставки — 10 дней при согласовании.', 'quote': source_text}]
     assert 'одно короткое утверждение' in generation['messages'][0]['content']
+    assert 'не более двух claims' in generation['messages'][0]['content']
     assert verifier['max_tokens'] == 512
 
 
