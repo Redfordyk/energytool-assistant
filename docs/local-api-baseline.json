@@ -1,0 +1,30 @@
+{
+  "measured_at_utc": "2026-11-09T15:21:26.892807+00:00",
+  "target": "http://localhost:8000",
+  "code_revision": "e8096d13097d0abfd822efa8402466828fad1d77",
+  "mode": "service_unready_path",
+  "service_readiness": false,
+  "requested": 20,
+  "sessions_created": 20,
+  "concurrency": 4,
+  "setup_statuses": {
+    "200": 20
+  },
+  "chat_statuses": {
+    "200": 20
+  },
+  "successful_responses": 20,
+  "fallback_responses": 20,
+  "trace_ids_returned": 20,
+  "latency_ms": {
+    "p50": 166.72,
+    "p95": 451.29,
+    "p99": 484.39
+  },
+  "limitations": [
+    "Synthetic questions only; no user data.",
+    "Latency is measured at the HTTP chat endpoint.",
+    "When service_readiness is false, this does not verify a complete configured response path.",
+    "No first-token latency is available because responses are not streamed."
+  ]
+}
