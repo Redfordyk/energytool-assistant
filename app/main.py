@@ -1,18 +1,16 @@
 import hashlib
-import re
 import secrets
 import threading
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
-from sqlalchemy import insert, select, text
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from pydantic import BaseModel, Field, StrictBool
+from sqlalchemy import insert, select
 
-from app.database import audit, knowledge, lead_consents, leads, make_engine, messages, sessions
+from app.database import audit, knowledge, make_engine, messages, sessions
 from app.governance import active_knowledge, change_revision, register, require_admin, require_role
+from app.lead_service import cancel as cancel_lead, confirm as confirm_lead, lock_session, prepare as prepare_lead
 from core.rag import FALLBACK, answer
 
 app = FastAPI(title='Energytool consultant')
@@ -38,12 +36,15 @@ class Message(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
 
 
-class Lead(BaseModel):
+class LeadDraft(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     phone: str = Field(min_length=5, max_length=30)
     company: str = Field(min_length=2, max_length=160)
-    consent: bool
-    request_key: str = Field(min_length=8, max_length=100)
+
+
+class LeadConfirmation(BaseModel):
+    confirmation_token: str = Field(min_length=32, max_length=128)
+    consent: StrictBool
 
 
 @app.get('/')
@@ -83,9 +84,7 @@ def chat(session_id: str, message: Message, authorization: str = Header(default=
     if not question:
         raise HTTPException(422, 'Введите сообщение')
     with session_lock(session_id), engine.begin() as db:
-        if db.dialect.name == 'postgresql':
-            # The database lock serializes the session across application workers.
-            db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': int.from_bytes(hashlib.sha256(session_id.encode()).digest()[:8], 'big', signed=True)})
+        lock_session(db, session_id)
         previous = read_history(db, session_id)
         chunks = active_knowledge(engine)
         result = answer(question, chunks, previous) if chunks else FALLBACK
@@ -94,22 +93,27 @@ def chat(session_id: str, message: Message, authorization: str = Header(default=
     return {'answer': result}
 
 
-@app.post('/api/sessions/{session_id}/leads')
-def lead(session_id: str, lead: Lead, authorization: str = Header(default='')):
+@app.post('/api/sessions/{session_id}/lead-drafts')
+def draft_lead(session_id: str, draft: LeadDraft, authorization: str = Header(default=''),
+               idempotency_key: str = Header(default='')):
     authorize(session_id, authorization)
-    if not lead.consent or not re.fullmatch(r'[+\d ()-]{5,30}', lead.phone) or not 10 <= len(re.sub(r'\D', '', lead.phone)) <= 15 or not lead.name.strip() or not lead.company.strip():
-        raise HTTPException(422, 'Проверьте контакты и подтвердите согласие')
-    values = dict(session_id=session_id, request_key=lead.request_key, name=lead.name.strip(), phone=lead.phone.strip(), company=lead.company.strip())
-    with engine.begin() as db:
-        dialect_insert = pg_insert if db.dialect.name == 'postgresql' else sqlite_insert
-        inserted = db.execute(dialect_insert(leads).values(**values).on_conflict_do_nothing(index_elements=['session_id', 'request_key']))
-        row = db.execute(select(leads).where(leads.c.session_id == session_id, leads.c.request_key == lead.request_key)).one()
-        if (row.name, row.phone, row.company) != (values['name'], values['phone'], values['company']):
-            raise HTTPException(409, 'Ключ уже использован для другой заявки')
-        lead_id = row.id
-        if inserted.rowcount == 1:
-            db.execute(insert(lead_consents).values(lead_id=lead_id, purpose='demo_local_storage'))
-    return {'id': lead_id, 'status': 'saved'}
+    with session_lock(session_id):
+        return prepare_lead(engine, session_id, idempotency_key, draft.name, draft.phone, draft.company)
+
+
+@app.post('/api/sessions/{session_id}/leads')
+def lead(session_id: str, confirmation: LeadConfirmation, authorization: str = Header(default=''),
+         idempotency_key: str = Header(default='')):
+    authorize(session_id, authorization)
+    with session_lock(session_id):
+        return confirm_lead(engine, session_id, idempotency_key, confirmation.confirmation_token, confirmation.consent)
+
+
+@app.delete('/api/sessions/{session_id}/lead-drafts')
+def delete_draft(session_id: str, authorization: str = Header(default=''), idempotency_key: str = Header(default='')):
+    authorize(session_id, authorization)
+    with session_lock(session_id):
+        return cancel_lead(engine, session_id, idempotency_key)
 
 
 @app.get('/api/admin/knowledge')

@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.database import make_engine
+from app.lead_service import confirm
 
 
 @pytest.mark.skipif(not os.getenv('TEST_DATABASE_URL'), reason='PostgreSQL test database not configured')
@@ -16,13 +17,16 @@ def test_postgres_concurrent_lead_idempotency(monkeypatch):
     monkeypatch.setattr(main, 'engine', engine)
     client = TestClient(main.app)
     session = client.post('/api/sessions').json()
-    url = '/api/sessions/' + session['id'] + '/leads'
-    headers = {'Authorization': 'Bearer ' + session['token']}
-    lead = {'name': 'Тестовый Клиент', 'phone': '+79991234567', 'company': 'Пример', 'consent': True, 'request_key': 'same-request-key'}
+    url = '/api/sessions/' + session['id']
+    headers = {'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'same-request-key'}
+    draft = {'name': 'Тестовый Клиент', 'phone': '+79991234567', 'company': 'Пример'}
+    prepared = client.post(url + '/lead-drafts', headers=headers, json=draft)
+    assert prepared.status_code == 200
+    lead = {'confirmation_token': prepared.json()['confirmation_token'], 'consent': True}
     with ThreadPoolExecutor(max_workers=8) as pool:
-        responses = list(pool.map(lambda _: client.post(url, headers=headers, json=lead), range(8)))
-    assert all(response.status_code == 200 for response in responses)
-    assert len({response.json()['id'] for response in responses}) == 1
+        responses = list(pool.map(lambda _: confirm(engine, session['id'], headers['Idempotency-Key'], lead['confirmation_token'], True), range(8)))
+    assert len({response['id'] for response in responses}) == 1
+    assert client.post(url + '/leads', headers=headers, json=lead).json() == responses[0]
     engine.dispose()
 
 

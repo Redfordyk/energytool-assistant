@@ -22,6 +22,16 @@ lead_consents = Table('lead_consents', metadata,
     Column('lead_id', Integer, ForeignKey('leads.id'), primary_key=True),
     Column('purpose', String(64), nullable=False),
     Column('confirmed_at', DateTime(timezone=True), server_default=func.now(), nullable=False))
+lead_drafts = Table('lead_drafts', metadata,
+    Column('session_id', String(64), ForeignKey('sessions.id'), primary_key=True),
+    Column('request_key', String(100), primary_key=True),
+    Column('name', String(120), nullable=False), Column('phone', String(30), nullable=False),
+    Column('company', String(160), nullable=False), Column('summary', Text, nullable=False),
+    Column('knowledge_revision', String(64)), Column('confirmation_hash', String(64), nullable=False),
+    Column('expires_at', Integer, nullable=False), Column('lead_id', Integer, ForeignKey('leads.id')))
+lead_contexts = Table('lead_contexts', metadata,
+    Column('lead_id', Integer, ForeignKey('leads.id'), primary_key=True),
+    Column('summary', Text, nullable=False), Column('knowledge_revision', String(64)))
 knowledge = Table('knowledge_revisions', metadata,
     Column('sha256', String(64), primary_key=True),
     Column('status', String(16), nullable=False),
