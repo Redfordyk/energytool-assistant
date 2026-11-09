@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import main
+from app import main, security
 from app.database import make_engine, metadata
 from app.security import consume
 
@@ -73,6 +73,9 @@ def test_overloaded_chat_rejects_without_recording_message(tmp_path, monkeypatch
     engine = make_engine('sqlite:///' + str(tmp_path / 'busy.db'))
     metadata.create_all(engine)
     monkeypatch.setattr(main, 'engine', engine)
+    # Keep this test focused on the in-process overload guard. SQLite serializes
+    # the middleware's rate-limit writes, while PostgreSQL handles them concurrently.
+    monkeypatch.setattr(security, 'consume', lambda *_args: (True, 60))
     monkeypatch.setattr(main, 'CHAT_SLOTS', threading.BoundedSemaphore(1))
     monkeypatch.setattr(main, 'active_knowledge', lambda _engine: ())
     started, release = threading.Event(), threading.Event()
