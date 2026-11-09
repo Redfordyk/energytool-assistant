@@ -14,7 +14,14 @@ from core.rag import answer, load_knowledge
 
 app = FastAPI(title='Energytool consultant')
 DB = os.getenv('DATABASE_PATH', 'energytool.db')
-LOCK = threading.Lock()
+# Bounded lock striping keeps requests in one session ordered without
+# serializing every visitor or accumulating a lock per session forever.
+SESSION_LOCKS = tuple(threading.Lock() for _ in range(64))
+
+
+def session_lock(session_id):
+    index = int.from_bytes(hashlib.sha256(session_id.encode()).digest()[:4], 'big')
+    return SESSION_LOCKS[index % len(SESSION_LOCKS)]
 
 
 def connect():
@@ -81,7 +88,7 @@ def chat(session_id: str, message: Message, authorization: str = Header(default=
     text = message.text.strip()
     if not text:
         raise HTTPException(422, 'Введите сообщение')
-    with LOCK:
+    with session_lock(session_id):
         previous = history(session_id, authorization)
         path = Path(os.getenv('DATA_DIR', 'data')) / 'knowledge-base.zip'
         try:

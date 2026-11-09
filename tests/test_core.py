@@ -1,6 +1,6 @@
 import zipfile
 
-from core.rag import FALLBACK, answer, load_knowledge, retrieve
+from core.rag import FALLBACK, Chunk, answer, load_knowledge, retrieve, validate_response
 
 
 def test_retrieval_covers_later_sections(tmp_path):
@@ -24,3 +24,48 @@ def test_archive_size_limit(tmp_path):
     import pytest
     with pytest.raises(ValueError):
         load_knowledge(archive)
+
+
+def test_claims_require_real_quotes_and_matching_numbers():
+    sources = [Chunk('test.md', 'Срок поставки составляет 10 дней при согласовании.')]
+    valid = '{"claims":[{"text":"Срок поставки — 10 дней при согласовании.","source":1,"quote":"Срок поставки составляет 10 дней при согласовании."}]}'
+    assert validate_response(valid, sources) == 'Срок поставки — 10 дней при согласовании.'
+    assert validate_response(valid.replace('10 дней при согласовании.', '20 дней при согласовании.', 1), sources) is None
+    assert validate_response(valid.replace('"source":1', '"source":2'), sources) is None
+    assert validate_response(valid.replace('составляет 10 дней', 'составляет 11 дней'), sources) is None
+    assert validate_response('{"claims":[]}', sources) is None
+
+
+def test_model_response_is_checked(monkeypatch):
+    import httpx
+
+    monkeypatch.setenv('LLM_BASE_URL', 'https://example.test')
+    monkeypatch.setenv('LLM_API_KEY', 'fake')
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def post(self, *args, **kwargs):
+            return httpx.Response(200, request=httpx.Request('POST', 'https://example.test'), json={
+                'choices': [{'message': {'content': '{"claims":[{"text":"Срок 99 дней", "source":1, "quote":"Срок поставки составляет 10 дней."}]}'}}]
+            })
+
+    monkeypatch.setattr(httpx, 'Client', FakeClient)
+    assert answer('срок поставки', [Chunk('test.md', 'Срок поставки составляет 10 дней.')]) == FALLBACK
+
+
+def test_knowledge_cache_invalidates_on_change(tmp_path):
+    archive = tmp_path / 'kb.zip'
+    with zipfile.ZipFile(archive, 'w') as z:
+        z.writestr('test.md', 'Первый документ')
+    assert 'Первый' in load_knowledge(archive)[0].text
+    with zipfile.ZipFile(archive, 'w') as z:
+        z.writestr('test.md', 'Совершенно другой документ')
+    assert 'другой' in load_knowledge(archive)[0].text
