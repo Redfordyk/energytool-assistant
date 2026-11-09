@@ -128,6 +128,8 @@ def validate_response(raw, sources):
 
 
 def answer(question, chunks, history=()):
+    if re.fullmatch(r'\s*(?:здравствуйте|здравствуй|добрый день|доброе утро|добрый вечер|привет)[!.,\s]*', question.lower()):
+        return 'Здравствуйте! Расскажите, какую задачу в области энергетики вы хотите решить?'
     search_query = question
     if len(tokens(question)) < 4:
         prior_questions = [m['content'] for m in history[-8:] if m.get('role') == 'user' and isinstance(m.get('content'), str)]

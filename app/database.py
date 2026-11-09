@@ -45,6 +45,9 @@ audit = Table('audit_events', metadata,
     Column('action', String(40), nullable=False), Column('actor', String(16), nullable=False),
     Column('subject', String(64), nullable=False),
     Column('created_at', DateTime(timezone=True), server_default=func.now(), nullable=False))
+rate_limits = Table('rate_limits', metadata,
+    Column('key', String(64), primary_key=True),
+    Column('window', Integer, nullable=False), Column('count', Integer, nullable=False))
 
 
 def make_engine(url=None):

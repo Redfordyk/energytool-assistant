@@ -15,6 +15,8 @@ def test_no_model_fails_closed(monkeypatch):
     monkeypatch.delenv('LLM_API_KEY', raising=False)
     monkeypatch.delenv('OPENAI_API_KEY', raising=False)
     assert answer('цена', []) == FALLBACK
+    assert 'Расскажите' in answer('Здравствуйте!', [])
+    assert answer('Здравствуйте, сколько стоит?', []) == FALLBACK
 
 
 def test_archive_size_limit(tmp_path):

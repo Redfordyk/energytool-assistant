@@ -1,21 +1,35 @@
 import hashlib
+import os
 import secrets
 import threading
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool
 from sqlalchemy import insert, select
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import audit, knowledge, make_engine, messages, sessions
 from app.governance import active_knowledge, change_revision, register, require_admin, require_role
 from app.lead_service import cancel as cancel_lead, confirm as confirm_lead, lock_session, prepare as prepare_lead
-from core.rag import FALLBACK, answer
+from app.security import RequestGuard
+from core.rag import answer
 
 app = FastAPI(title='Energytool consultant')
 engine = make_engine()
+app.add_middleware(RequestGuard, engine_provider=lambda: engine)
+app.mount('/assets', StaticFiles(directory=Path(__file__).with_name('static')), name='assets')
 SESSION_LOCKS = tuple(threading.Lock() for _ in range(64))
+CHAT_SLOTS = threading.BoundedSemaphore(4)
+
+
+@app.exception_handler(SQLAlchemyError)
+async def database_error(_request, _exc):
+    return JSONResponse({'detail': 'Сервис временно недоступен'}, status_code=503)
 
 
 def session_lock(session_id):
@@ -57,6 +71,25 @@ def admin_page():
     return FileResponse(Path(__file__).with_name('admin.html'))
 
 
+@app.get('/health/live')
+def liveness():
+    return {'status': 'alive'}
+
+
+@app.get('/health/ready')
+def readiness():
+    try:
+        with engine.connect() as db:
+            db.execute(text('SELECT 1'))
+        configured = bool((os.getenv('LLM_BASE_URL') or os.getenv('BASE_URL') or os.getenv('OPENAI_BASE_URL'))
+                          and (os.getenv('LLM_API_KEY') or os.getenv('OPENAI_API_KEY')))
+        if configured and active_knowledge(engine):
+            return {'status': 'ready'}
+    except SQLAlchemyError:
+        pass
+    return JSONResponse({'status': 'not_ready'}, status_code=503)
+
+
 @app.post('/api/sessions')
 def create_session():
     session_id, token = secrets.token_urlsafe(24), secrets.token_urlsafe(32)
@@ -83,13 +116,18 @@ def chat(session_id: str, message: Message, authorization: str = Header(default=
     question = message.text.strip()
     if not question:
         raise HTTPException(422, 'Введите сообщение')
-    with session_lock(session_id), engine.begin() as db:
-        lock_session(db, session_id)
-        previous = read_history(db, session_id)
-        chunks = active_knowledge(engine)
-        result = answer(question, chunks, previous) if chunks else FALLBACK
-        db.execute(insert(messages), [{'session_id': session_id, 'role': 'user', 'content': question},
-                                      {'session_id': session_id, 'role': 'assistant', 'content': result}])
+    if not CHAT_SLOTS.acquire(blocking=False):
+        raise HTTPException(503, 'Сервис занят, повторите запрос позже', headers={'Retry-After': '5'})
+    try:
+        with session_lock(session_id), engine.begin() as db:
+            lock_session(db, session_id)
+            previous = read_history(db, session_id)
+            chunks = active_knowledge(engine)
+            result = answer(question, chunks or (), previous)
+            db.execute(insert(messages), [{'session_id': session_id, 'role': 'user', 'content': question},
+                                          {'session_id': session_id, 'role': 'assistant', 'content': result}])
+    finally:
+        CHAT_SLOTS.release()
     return {'answer': result}
 
 
@@ -131,6 +169,8 @@ def review_history(session_id: str, role: str = Depends(require_role)):
             raise HTTPException(404, 'Диалог не найден')
         result = read_history(db, session_id)
         db.execute(insert(audit).values(action='session.review', actor=role, subject=session_id))
+    if role == 'reviewer':
+        return [{'role': item['role'], 'characters': len(item['content'])} for item in result]
     return result
 
 

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app import main
 from app.database import make_engine
 from app.lead_service import confirm
+from app.security import consume
 
 
 @pytest.mark.skipif(not os.getenv('TEST_DATABASE_URL'), reason='PostgreSQL test database not configured')
@@ -48,4 +49,14 @@ def test_postgres_knowledge_lifecycle(monkeypatch, tmp_path):
     assert client.post(f'{root}/{revision}/approve', headers=headers).status_code == 200
     assert client.post(f'{root}/{revision}/activate', headers=headers).status_code == 200
     assert client.post(f'{root}/{revision}/revoke', headers=headers).status_code == 200
+    engine.dispose()
+
+
+@pytest.mark.skipif(not os.getenv('TEST_DATABASE_URL'), reason='PostgreSQL test database not configured')
+def test_postgres_rate_limit_across_connections():
+    engine = make_engine(os.environ['TEST_DATABASE_URL'])
+    client = 'rate-test-' + secrets.token_hex(8)
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        results = list(pool.map(lambda _: consume(engine, client, 'messages', 5, now=1200), range(20)))
+    assert sum(allowed for allowed, _ in results) == 5
     engine.dispose()
