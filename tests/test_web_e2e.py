@@ -74,6 +74,10 @@ def test_review_and_save_lead_in_browser(tmp_path):
             )
             page = browser.new_page()
             page.goto(url)
+            expect(page.locator('link[href="/assets/tokens.css"]')).to_have_count(1)
+            assert page.locator('body').evaluate(
+                '(element) => getComputedStyle(element).getPropertyValue("--color-brand").trim()'
+            ) == '#e30611'
             expect(
                 page.get_by_role('heading', name='Интеллектуальная система энергоконсалтинга')
             ).to_be_visible()
@@ -106,6 +110,16 @@ def test_review_and_save_lead_in_browser(tmp_path):
             expect(page.locator('#status')).to_contain_text('Трасса: ')
             trace_id = page.locator('#status').inner_text().split('Трасса: ', 1)[1]
             page.goto(url + '/admin')
+            expect(page.get_by_role('heading', name='База знаний')).to_be_visible()
+            expect(page.locator('link[href="/assets/tokens.css"]')).to_have_count(1)
+            assert page.locator('.admin-card').first.evaluate(
+                '(element) => getComputedStyle(element).backgroundColor'
+            ) == 'rgb(255, 255, 255)'
+            page.set_viewport_size({'width': 375, 'height': 812})
+            assert page.locator('body').evaluate(
+                '(element) => element.scrollWidth <= window.innerWidth'
+            )
+            page.set_viewport_size({'width': 1280, 'height': 900})
             page.locator('#token').fill('e2e-reviewer-secret')
             page.locator('#trace-id').fill(trace_id)
             page.get_by_role('button', name='Открыть трассу').click()
