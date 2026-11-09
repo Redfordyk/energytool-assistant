@@ -241,13 +241,13 @@ def tariff_clarification(question, history=()):
 _QUANTIFIED_VALUE = re.compile(
     r'(?<!\w)(?P<number>\d+(?:[.,]\d+)?)\s*'
     r'(?P<unit>%|процент(?:а|ов)?|₽|руб(?:ль|ля|лей)?|'
-    r'мвт\s*ч|квт\s*ч|мвт/ч|квт/ч|мвт|квт|мва|ква|'
+    r'мвт(?:[·⋅]?\s*ч)|квт(?:[·⋅]?\s*ч)|мвт|квт|мва|ква|'
     r'киловольт|кв|день|дня|дней|сутки|суток|'
     r'год|года|лет|месяц|месяца|месяцев|час|часа|часов)?', re.I)
 _UNIT_CANONICAL = {
     '%': '%', 'процент': '%', 'процента': '%', 'процентов': '%',
     '₽': 'руб.', 'руб': 'руб.', 'рубль': 'руб.', 'рубля': 'руб.', 'рублей': 'руб.',
-    'квтч': 'квтч', 'квт/ч': 'квтч', 'мвтч': 'мвтч', 'мвт/ч': 'мвтч',
+    'квтч': 'квтч', 'мвтч': 'мвтч',
     'квт': 'квт', 'мвт': 'мвт', 'ква': 'ква', 'мва': 'мва',
     'кв': 'кв', 'киловольт': 'кв',
     'день': 'день', 'дня': 'день', 'дней': 'день', 'сутки': 'день', 'суток': 'день',
@@ -269,7 +269,8 @@ def _quantified_values(text):
     for match in _QUANTIFIED_VALUE.finditer(text):
         unit = match.group('unit')
         values.append((_number_key(match.group('number')),
-                       _UNIT_CANONICAL.get(unit.lower().replace(' ', ''), None) if unit else None))
+                       _UNIT_CANONICAL.get(unit.lower().replace(' ', '').replace('·', '').replace('⋅', ''), None)
+                       if unit else None))
     return values
 
 

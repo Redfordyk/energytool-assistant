@@ -161,6 +161,9 @@ def test_claims_reject_altered_or_omitted_units_and_accept_equivalent_percent_fo
     assert validate_response(wrong_unit, [source]) is None
     assert validate_response(missing_unit, [source]) is None
     assert validate_response(percent_equivalent, [source]) == 'Обслуживание стоит 0.5 процента.'
+    energy = Chunk('test.md', 'За период отпущено 100 кВт·ч.')
+    energy_claim = '{"claims":[{"text":"За период отпущено 100 кВт ч.","source":1,"quote":"За период отпущено 100 кВт·ч."}]}'
+    assert validate_response(energy_claim, [energy]) == 'За период отпущено 100 кВт ч.'
 
 
 def test_claims_match_prompt_limit_of_two_claims():
