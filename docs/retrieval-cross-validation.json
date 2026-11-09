@@ -1,0 +1,262 @@
+{
+  "questions": 18,
+  "chunks": 292,
+  "primary_source_groups": 12,
+  "parameter_grid": {
+    "token_prefix_length": [
+      3,
+      4,
+      5,
+      6
+    ],
+    "k1": [
+      0.7,
+      1.2,
+      2.0
+    ],
+    "b": [
+      0.25,
+      0.75,
+      1.0
+    ]
+  },
+  "current_config": {
+    "algorithm": "BM25",
+    "token_prefix_length": 5,
+    "k1": 0.7,
+    "b": 0.25
+  },
+  "current_config_mrr@10": 0.8981481481481483,
+  "grouped_cross_validated_mrr@10": 0.8611111111111112,
+  "folds": [
+    {
+      "held_out_primary_source": "00-reference/01-numbers-and-indicators.md",
+      "train_questions": 17,
+      "test_questions": 1,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 1.0,
+      "queries": [
+        {
+          "id": "8",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "00-reference/02-product-scope-and-limits.md",
+      "train_questions": 17,
+      "test_questions": 1,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 1.0,
+      "queries": [
+        {
+          "id": "4",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "00-reference/03-calculation-and-requests.md",
+      "train_questions": 17,
+      "test_questions": 1,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 1.0,
+      "queries": [
+        {
+          "id": "18",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "10-energy/11-price-categories.md",
+      "train_questions": 17,
+      "test_questions": 1,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 1.0,
+      "queries": [
+        {
+          "id": "12",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "10-energy/14-tariffs.md",
+      "train_questions": 16,
+      "test_questions": 2,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 1.0,
+      "queries": [
+        {
+          "id": "10",
+          "rank": 1
+        },
+        {
+          "id": "17",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "10-energy/17-faq.md",
+      "train_questions": 17,
+      "test_questions": 1,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 1.0,
+      "queries": [
+        {
+          "id": "11",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "20-products/21-orem.md",
+      "train_questions": 17,
+      "test_questions": 1,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 1.0,
+      "queries": [
+        {
+          "id": "13",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "20-products/22-askue.md",
+      "train_questions": 15,
+      "test_questions": 3,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 0.5555555555555555,
+      "queries": [
+        {
+          "id": "5",
+          "rank": 3
+        },
+        {
+          "id": "6",
+          "rank": 3
+        },
+        {
+          "id": "7",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "20-products/23-solar.md",
+      "train_questions": 15,
+      "test_questions": 3,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 1.0,
+      "queries": [
+        {
+          "id": "1",
+          "rank": 1
+        },
+        {
+          "id": "2",
+          "rank": 1
+        },
+        {
+          "id": "14",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "20-products/24-losses.md",
+      "train_questions": 17,
+      "test_questions": 1,
+      "selected_parameters": {
+        "token_prefix_length": 4,
+        "k1": 0.7,
+        "b": 1.0
+      },
+      "mrr@10": 0.3333333333333333,
+      "queries": [
+        {
+          "id": "16",
+          "rank": 3
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "20-products/25-meter-reading.md",
+      "train_questions": 16,
+      "test_questions": 2,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 0.75,
+      "queries": [
+        {
+          "id": "9",
+          "rank": 1
+        },
+        {
+          "id": "15",
+          "rank": 2
+        }
+      ]
+    },
+    {
+      "held_out_primary_source": "20-products/26-general.md",
+      "train_questions": 17,
+      "test_questions": 1,
+      "selected_parameters": {
+        "token_prefix_length": 5,
+        "k1": 0.7,
+        "b": 0.25
+      },
+      "mrr@10": 1.0,
+      "queries": [
+        {
+          "id": "3",
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "source_level_only": true
+}

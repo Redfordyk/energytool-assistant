@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from core.rag import load_knowledge, retrieve, retrieval_query
+from core.rag import RETRIEVAL_CONFIG, load_knowledge, retrieve, retrieval_query
 
 
 def evaluate(questions_path, knowledge_path, gold_path, cutoffs=(1, 5, 10)):
@@ -27,7 +27,8 @@ def evaluate(questions_path, knowledge_path, gold_path, cutoffs=(1, 5, 10)):
 
     if not rows:
         raise ValueError('No questions matched the gold source manifest')
-    metrics = {'questions': len(rows), 'chunks': len(chunks), 'documents': len({c.source for c in chunks})}
+    metrics = {'questions': len(rows), 'chunks': len(chunks), 'documents': len({c.source for c in chunks}),
+               'retrieval_config': RETRIEVAL_CONFIG}
     for cutoff in cutoffs:
         metrics[f'recall@{cutoff}'] = sum(
             bool(set(row['expected']) & set(row['ranked'][:cutoff])) for row in rows
