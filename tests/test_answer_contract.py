@@ -112,6 +112,75 @@ def test_answer_binds_server_evidence_when_model_returns_source_only(monkeypatch
     assert verifier['max_tokens'] == 512
 
 
+def test_answer_verifies_user_measurement_against_a_knowledge_threshold(monkeypatch, gateway_env):
+    question = 'У нас 600 кВт присоединённой мощности. Доступен оптовый рынок?'
+    quote = 'При мощности ниже 750 кВт выход на оптовый рынок невозможен.'
+    generation = json.dumps(
+        {
+            'claims': [
+                {
+                    'text': 'При мощности 600 кВт выход на оптовый рынок невозможен.',
+                    'source': 1,
+                }
+            ]
+        },
+        ensure_ascii=False,
+    )
+    gateway = ModelGatewayStub(generation, '{"supported":[true]}')
+    install_gateway(monkeypatch, gateway)
+
+    result = answer(question, [Chunk('market.md', quote)])
+
+    verifier = next(
+        body
+        for url, body in gateway.calls
+        if url.endswith('/chat/completions') and body.get('max_tokens') == 512
+    )
+    verification_input = json.loads(verifier['messages'][1]['content'])
+    assert result == 'При мощности 600 кВт выход на оптовый рынок невозможен.'
+    assert verification_input == [
+        {
+            'claim': 'При мощности 600 кВт выход на оптовый рынок невозможен.',
+            'quote': quote,
+            'user_context_quantities': [{'number': '600', 'unit': 'кВт'}],
+        }
+    ]
+    assert question not in verifier['messages'][1]['content']
+    assert 'user_context_quantities' in verifier['messages'][0]['content']
+
+
+def test_user_number_does_not_make_unsupported_product_claim_valid(monkeypatch, gateway_env):
+    question = 'Вы гарантируете экономию 90% каждому клиенту?'
+    quote = 'Гарантированная экономия клиентам не обещается.'
+    generation = json.dumps(
+        {
+            'claims': [
+                {
+                    'text': 'Гарантируем экономию 90% каждому клиенту.',
+                    'source': 1,
+                }
+            ]
+        },
+        ensure_ascii=False,
+    )
+    gateway = ModelGatewayStub(generation, '{"supported":[false]}')
+    install_gateway(monkeypatch, gateway)
+    diagnostic = {}
+
+    result = answer(question, [Chunk('terms.md', quote)], diagnostics=diagnostic)
+
+    verifier = next(
+        body
+        for url, body in gateway.calls
+        if url.endswith('/chat/completions') and body.get('max_tokens') == 512
+    )
+    verification_input = json.loads(verifier['messages'][1]['content'])
+    assert result == FALLBACK
+    assert diagnostic['fallback_reason'] == 'claim_verification_failed'
+    assert verification_input[0]['user_context_quantities'] == [{'number': '90', 'unit': '%'}]
+    assert 'не подтверждают свойства продукта' in verifier['messages'][0]['content']
+
+
 def test_json_mode_is_sent_to_generation_and_verifier_when_enabled(monkeypatch, gateway_env):
     monkeypatch.setenv('LLM_JSON_MODE', 'true')
     response = json.dumps(

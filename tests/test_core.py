@@ -273,6 +273,34 @@ def test_claims_allow_dates_and_act_numbers_alongside_unit_bearing_facts():
     )
 
 
+def test_claims_can_bind_user_measurement_to_a_knowledge_threshold():
+    source = Chunk(
+        'market.md',
+        'При присоединённой мощности ниже 750 кВт выход на оптовый рынок невозможен.',
+    )
+    payload = (
+        '{"claims":[{"text":"При мощности 600 кВт выход на оптовый рынок невозможен.","source":1}]}'
+    )
+
+    claims = validate_claims(payload, [source], user_context='У нас 600 кВт мощности.')
+
+    assert claims == [
+        {
+            'text': 'При мощности 600 кВт выход на оптовый рынок невозможен.',
+            'source': 1,
+            'quote': source.text,
+            'user_context_quantities': [{'number': '600', 'unit': 'кВт'}],
+        }
+    ]
+
+
+def test_claims_do_not_convert_user_measurements_between_units():
+    source = Chunk('market.md', 'При мощности ниже 750 кВт выход невозможен.')
+    payload = '{"claims":[{"text":"При мощности 0,6 МВт выход невозможен.","source":1}]}'
+
+    assert validate_claims(payload, [source], user_context='У нас 600 кВт.') is None
+
+
 def test_claims_match_prompt_limit_of_two_claims():
     payload = '{"claims":[{"text":"Первый факт.","source":1},{"text":"Второй факт.","source":1},{"text":"Третий факт.","source":1}]}'
     assert validate_response(payload, [Chunk('test.md', 'Факты подтверждены.')]) is None
