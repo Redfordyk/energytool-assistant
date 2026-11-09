@@ -1,10 +1,13 @@
 import hashlib
+import json
 import os
 import secrets
 import threading
+import time
+import uuid
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,8 +18,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.database import audit, knowledge, make_engine, message_requests, messages, session_states, sessions
-from app.governance import active_knowledge, change_revision, register, require_admin, require_role
+from app.database import audit, knowledge, make_engine, message_requests, messages, session_states, sessions, traces
+from app.governance import active_knowledge, active_knowledge_snapshot, change_revision, register, require_admin, require_role
 from app.lead_service import cancel as cancel_lead, confirm as confirm_lead, lock_session, prepare as prepare_lead, validate_key
 from app.security import RequestGuard
 from core.rag import answer
@@ -157,10 +160,12 @@ def history(session_id: str, authorization: str = Header(default=''),
 
 
 @app.post('/api/sessions/{session_id}/messages')
-def chat(session_id: str, message: Message, authorization: str = Header(default=''),
+def chat(session_id: str, message: Message, request: Request, authorization: str = Header(default=''),
          idempotency_key: str = Header(default='')):
+    started = time.perf_counter()
     authorize(session_id, authorization)
     validate_key(idempotency_key)
+    request_id = request.scope.get('state', {}).get('request_id') or uuid.uuid4().hex
     question = message.text.strip()
     if not question:
         raise HTTPException(422, 'Введите сообщение')
@@ -171,7 +176,11 @@ def chat(session_id: str, message: Message, authorization: str = Header(default=
         if prior:
             if prior.question != question or prior.request_version != message.session_version:
                 raise HTTPException(409, 'Ключ уже использован для другого сообщения')
-            return {'answer': prior.answer, 'version': prior.result_version}
+            prior_trace = db.execute(select(traces.c.trace_id).where(
+                traces.c.session_id == session_id, traces.c.idempotency_key == idempotency_key)).scalar_one_or_none()
+            if prior_trace:
+                request.scope.setdefault('state', {})['request_id'] = prior_trace
+            return {'answer': prior.answer, 'version': prior.result_version, 'trace_id': prior_trace}
         state = ensure_state(db, session_id)
         if state.closed:
             raise HTTPException(409, 'Диалог закрыт')
@@ -181,17 +190,37 @@ def chat(session_id: str, message: Message, authorization: str = Header(default=
             raise HTTPException(503, 'Сервис занят, повторите запрос позже', headers={'Retry-After': '5'})
         try:
             previous = recent_history(db, session_id)
-            chunks = active_knowledge(engine)
-            result = answer(question, chunks or (), previous)
+            knowledge_revision, chunks = active_knowledge_snapshot(engine)
+            diagnostic = {}
+            result = answer(question, chunks or (), previous, diagnostic)
             db.execute(insert(messages), [{'session_id': session_id, 'role': 'user', 'content': question},
                                           {'session_id': session_id, 'role': 'assistant', 'content': result}])
             new_version = state.version + 1
             db.execute(insert(message_requests).values(session_id=session_id, request_key=idempotency_key,
                        question=question, answer=result, request_version=state.version, result_version=new_version))
             db.execute(update(session_states).where(session_states.c.session_id == session_id).values(version=new_version))
+            total_latency_ms = round((time.perf_counter() - started) * 1000)
+            db.execute(insert(traces).values(
+                trace_id=request_id, request_id=request_id, session_id=session_id,
+                idempotency_key=idempotency_key,
+                intent=diagnostic.get('intent', 'knowledge_query'),
+                query_plan=diagnostic.get('query_plan', 'not_available'),
+                state_before=state.version, state_after=new_version,
+                retrieval_top_k=diagnostic.get('retrieval_top_k', 0),
+                reranker=diagnostic.get('reranker', 'not_run'),
+                evidence_ids=json.dumps(diagnostic.get('evidence_ids', []), ensure_ascii=False),
+                claim_verification=diagnostic.get('claim_verification'),
+                model_name=diagnostic.get('model_name'),
+                prompt_revision=diagnostic.get('prompt_revision', 'claims-json-v1'),
+                ttft_ms=diagnostic.get('ttft_ms'), total_latency_ms=total_latency_ms,
+                prompt_token_count=diagnostic.get('prompt_token_count'),
+                completion_token_count=diagnostic.get('completion_token_count'),
+                fallback_reason=diagnostic.get('fallback_reason'),
+                knowledge_revision=knowledge_revision,
+            ))
         finally:
             CHAT_SLOTS.release()
-    return {'answer': result, 'version': new_version}
+    return {'answer': result, 'version': new_version, 'trace_id': request_id}
 
 
 @app.post('/api/sessions/{session_id}/lead-drafts')
@@ -222,6 +251,19 @@ def knowledge_list(role: str = Depends(require_role)):
     with engine.connect() as db:
         rows = db.execute(select(knowledge).order_by(knowledge.c.created_at.desc())).mappings().all()
     return [dict(row) for row in rows]
+
+
+@app.get('/api/admin/traces/{trace_id}')
+def debug_trace(trace_id: str, role: str = Depends(require_role)):
+    with engine.begin() as db:
+        row = db.execute(select(traces).where(traces.c.trace_id == trace_id)).mappings().first()
+        if row is None:
+            raise HTTPException(404, 'Трасса не найдена')
+        db.execute(insert(audit).values(action='trace.review', actor=role, subject=trace_id))
+    result = dict(row)
+    result.pop('idempotency_key', None)
+    result['evidence_ids'] = json.loads(result['evidence_ids'])
+    return result
 
 
 @app.get('/api/admin/sessions/{session_id}/messages')

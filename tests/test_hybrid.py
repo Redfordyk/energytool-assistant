@@ -82,4 +82,9 @@ def test_answer_falls_back_to_lexical_search_but_requires_verification(monkeypat
             return httpx.Response(200, request=request, json={'choices': [{'message': {'content': content}}]})
 
     monkeypatch.setattr(httpx, 'Client', Client)
-    assert answer('срок', [Chunk('test', 'Срок составляет 10 дней при согласовании.')]) == 'Срок составляет 10 дней.'
+    diagnostics = {}
+    assert answer('срок', [Chunk('test', 'Срок составляет 10 дней при согласовании.')], diagnostics=diagnostics) == 'Срок составляет 10 дней.'
+    assert diagnostics['query_plan'] == 'bm25'
+    assert diagnostics['reranker'] == 'unavailable'
+    assert diagnostics['claim_verification'] is True
+    assert diagnostics['evidence_ids']

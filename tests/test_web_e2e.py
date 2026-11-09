@@ -18,7 +18,8 @@ def test_review_and_save_lead_in_browser(tmp_path):
     root = Path(__file__).resolve().parents[1]
     env = os.environ.copy()
     env.update(DATABASE_URL='sqlite:///' + (tmp_path / 'web.db').as_posix(),
-               DATA_DIR=str(tmp_path / 'data'), KNOWLEDGE_DIR=str(tmp_path / 'knowledge'))
+               DATA_DIR=str(tmp_path / 'data'), KNOWLEDGE_DIR=str(tmp_path / 'knowledge'),
+               ADMIN_TOKEN='e2e-admin-secret', REVIEWER_TOKEN='e2e-reviewer-secret')
     for name in ('LLM_API_KEY', 'OPENAI_API_KEY', 'LLM_BASE_URL', 'BASE_URL', 'OPENAI_BASE_URL'):
         env.pop(name, None)
     subprocess.run([sys.executable, '-m', 'alembic', 'upgrade', 'head'], cwd=root, env=env, check=True, capture_output=True)
@@ -58,6 +59,15 @@ def test_review_and_save_lead_in_browser(tmp_path):
             page.unroute(pattern, lose_first_response)
             page.get_by_role('button', name='Отправить').click()
             expect(page.locator('#messages p')).to_have_count(2)
+            expect(page.locator('#status')).to_contain_text('Трасса: ')
+            trace_id = page.locator('#status').inner_text().split('Трасса: ', 1)[1]
+            page.goto(url + '/admin')
+            page.locator('#token').fill('e2e-reviewer-secret')
+            page.locator('#trace-id').fill(trace_id)
+            page.get_by_role('button', name='Открыть трассу').click()
+            expect(page.locator('#trace-output')).to_contain_text('"intent": "greeting"')
+            assert 'Здравствуйте' not in page.locator('#trace-output').inner_text()
+            page.goto(url)
             page.locator('#name').fill('Тестовый Клиент')
             page.locator('#phone').fill('8 999 123-45-67')
             page.locator('#company').fill('Тестовая компания')
