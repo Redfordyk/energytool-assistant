@@ -105,3 +105,13 @@ After deployment, the container reported prompt revision
 availability. The conflict check is intentionally narrow and does not
 replace an owner-approved source-priority policy or a general semantic
 contradiction evaluator.
+
+Commit `575542a` adds persisted consultation lifecycle state and separate
+before/after lifecycle values to each chat trace. PR #43 passed both CI
+workflows; the E2E-enabled local suite reported 828 passed and 5 skipped. The
+release migration advanced the production PostgreSQL database to Alembic
+revision `0008`. A synthetic public API smoke created a session, sent only a
+greeting, observed `DISCOVERY`, and closed the session; the deterministic
+greeting path did not call the external model. The release is not evidence
+that the unimplemented recommendation, live handoff, or full dialogue-state
+routing is complete.
