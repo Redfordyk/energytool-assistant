@@ -26,7 +26,7 @@ STOP_WORDS = frozenset(('это', 'как', 'что', 'для', 'или', 'пр�
 TOKEN_PREFIX_LENGTH = 5
 BM25_K1 = 0.7
 BM25_B = 0.25
-QUERY_EXPANSION_REVISION = 'ru-energy-domain-v2'
+QUERY_EXPANSION_REVISION = 'ru-energy-domain-v3'
 RETRIEVAL_CONFIG = {
     'algorithm': 'BM25',
     'token_prefix_length': TOKEN_PREFIX_LENGTH,
@@ -176,7 +176,7 @@ def expand_retrieval_query(question):
         additions.append('обслуживание периодическая очистка панелей 0.5 процента стоимости в год')
     if re.search(r'оптов', lowered) and re.search(r'квт|мвт|мощност', lowered):
         additions.append('порог доступа присоединенная мощность 750 кВт 20 МВт прямое участие посредник')
-    if re.search(r'излиш|отдавать в сеть|продать в сеть', lowered) and re.search(r'солнеч|станци|генерац', lowered):
+    if re.search(r'излиш|отдавать в сеть|отдач.{0,20}сеть|продать в сеть', lowered) and re.search(r'сет|сбыт', lowered):
         additions.append('юрлица и ип могут отдавать в сеть до 150 кВт излишки генерации')
     if re.search(r'част|увелич|расшир|наращ', lowered) and re.search(r'солнеч|станци|панел|мощност', lowered):
         additions.append('станция легко наращивается поэтапный ввод мощности начать с части нагрузки')

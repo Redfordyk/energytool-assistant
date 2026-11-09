@@ -63,7 +63,7 @@ def test_retrieval_query_expands_deployment_retention_and_solar_project_inputs()
 
 def test_retrieval_query_expands_market_thresholds_export_and_panel_maintenance():
     market = expand_retrieval_query('При мощности 600 кВт доступен оптовый рынок?')
-    export = expand_retrieval_query('Можно отдавать излишки солнечной генерации в сеть?')
+    export = expand_retrieval_query('Какова максимальная мощность для отдачи излишков в сеть?')
     maintenance = expand_retrieval_query('Как часто нужна очистка солнечных панелей?')
     assert '750 кВт 20 МВт прямое участие' in market
     assert 'до 150 кВт излишки генерации' in export
