@@ -1,0 +1,11 @@
+[Unit]
+Description=Test an Energytool backup restore every week
+
+[Timer]
+OnCalendar=Sun *-*-* 04:15:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=energytool-restore-test.service
+
+[Install]
+WantedBy=timers.target

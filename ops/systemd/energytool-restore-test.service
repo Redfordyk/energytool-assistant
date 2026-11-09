@@ -1,0 +1,15 @@
+[Unit]
+Description=Verify the latest Energytool backup can be restored
+After=docker.service
+Requires=docker.service
+ConditionPathExists=/opt/energytool-assistant/.env
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/opt/energytool-assistant/current/ops/restore-smoke.sh
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+PrivateTmp=true
