@@ -31,19 +31,19 @@
       "sim -> simcard",
       "фот* -> photo"
     ],
-    "query_expansion_revision": "ru-energy-domain-v1"
+    "query_expansion_revision": "ru-energy-domain-v3"
   },
   "current_config_mrr@10": 0.9444444444444444,
-  "grouped_cross_validated_mrr@10": 0.8888888888888888,
+  "grouped_cross_validated_mrr@10": 0.9166666666666666,
   "folds": [
     {
       "held_out_primary_source": "00-reference/01-numbers-and-indicators.md",
       "train_questions": 17,
       "test_questions": 1,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
       "mrr@10": 1.0,
       "queries": [
@@ -58,9 +58,9 @@
       "train_questions": 17,
       "test_questions": 1,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
       "mrr@10": 1.0,
       "queries": [
@@ -75,9 +75,9 @@
       "train_questions": 16,
       "test_questions": 2,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
       "mrr@10": 1.0,
       "queries": [
@@ -98,13 +98,13 @@
       "selected_parameters": {
         "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
-      "mrr@10": 0.5,
+      "mrr@10": 1.0,
       "queries": [
         {
           "id": "12",
-          "rank": 2
+          "rank": 1
         }
       ]
     },
@@ -113,15 +113,15 @@
       "train_questions": 16,
       "test_questions": 2,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 3,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
-      "mrr@10": 1.0,
+      "mrr@10": 0.75,
       "queries": [
         {
           "id": "10",
-          "rank": 1
+          "rank": 2
         },
         {
           "id": "17",
@@ -134,9 +134,9 @@
       "train_questions": 17,
       "test_questions": 1,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
       "mrr@10": 1.0,
       "queries": [
@@ -151,9 +151,9 @@
       "train_questions": 17,
       "test_questions": 1,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
       "mrr@10": 1.0,
       "queries": [
@@ -168,9 +168,9 @@
       "train_questions": 15,
       "test_questions": 3,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
       "mrr@10": 0.8333333333333334,
       "queries": [
@@ -193,9 +193,9 @@
       "train_questions": 15,
       "test_questions": 3,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
       "mrr@10": 1.0,
       "queries": [
@@ -218,9 +218,9 @@
       "train_questions": 17,
       "test_questions": 1,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
       "mrr@10": 0.5,
       "queries": [
@@ -235,9 +235,9 @@
       "train_questions": 17,
       "test_questions": 1,
       "selected_parameters": {
-        "token_prefix_length": 5,
+        "token_prefix_length": 4,
         "k1": 0.7,
-        "b": 0.25
+        "b": 1.0
       },
       "mrr@10": 1.0,
       "queries": [
@@ -256,11 +256,11 @@
         "k1": 0.7,
         "b": 1.0
       },
-      "mrr@10": 0.5,
+      "mrr@10": 1.0,
       "queries": [
         {
           "id": "3",
-          "rank": 2
+          "rank": 1
         }
       ]
     }

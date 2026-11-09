@@ -17,7 +17,7 @@
         "sim -> simcard",
         "фот* -> photo"
       ],
-      "query_expansion_revision": "ru-energy-domain-v2"
+      "query_expansion_revision": "ru-energy-domain-v3"
     },
     "query_hit@1": 0.7777777777777778,
     "evidence_recall@1": 0.7368421052631579,
