@@ -40,6 +40,7 @@ class ModelGatewayStub:
 def gateway_env(monkeypatch):
     monkeypatch.setenv('LLM_BASE_URL', 'https://test-gateway')
     monkeypatch.setenv('LLM_API_KEY', 'test-only')
+    monkeypatch.delenv('LLM_JSON_MODE', raising=False)
 
 
 def install_gateway(monkeypatch, gateway):
@@ -61,6 +62,24 @@ def test_answer_survives_optional_retrieval_failures_with_verified_quote(monkeyp
     assert any(url.endswith('/embeddings') for url, _ in gateway.calls)
     assert any(url.endswith('/rerank') for url, _ in gateway.calls)
     assert gateway.chat_calls == 2
+
+
+def test_json_mode_is_sent_to_generation_and_verifier_when_enabled(monkeypatch, gateway_env):
+    monkeypatch.setenv('LLM_JSON_MODE', 'true')
+    response = json.dumps({'claims': [{
+        'text': 'Срок — 10 дней при согласовании.',
+        'source': 1,
+        'quote': 'Срок поставки составляет 10 дней при согласовании.',
+    }]}, ensure_ascii=False)
+    gateway = ModelGatewayStub(response, '{"supported":[true]}')
+    install_gateway(monkeypatch, gateway)
+
+    result = answer('срок поставки', [Chunk('terms.md', 'Срок поставки составляет 10 дней при согласовании.')])
+
+    chat_requests = [body for url, body in gateway.calls if url.endswith('/chat/completions')]
+    assert result == 'Срок — 10 дней при согласовании.'
+    assert len(chat_requests) == 2
+    assert all(body['response_format'] == {'type': 'json_object'} for body in chat_requests)
 
 
 def test_provider_endpoints_can_be_configured_independently(monkeypatch, gateway_env):
