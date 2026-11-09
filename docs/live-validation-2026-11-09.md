@@ -79,3 +79,29 @@ endpoints were not configured.
 Both were captured from the deployed page at HTTP 200. The mobile page width
 matched the 390 px viewport with no horizontal overflow. The screenshots are
 visual evidence, not a full keyboard/screen-reader accessibility audit.
+
+## Release follow-up — 2026-11-10
+
+Two additional runtime changes were merged and deployed after the original
+validation run:
+
+- Commit `8ac2296` (`claims-user-turns-v7`) removes assistant-labeled turns in
+  organizer transcripts from the generation question and customer-number
+  context. PR #40 passed both CI workflows; the full local suite reported 819
+  passed and 5 skipped.
+- Commit `c58340d` adds a conservative pre-generation check for near-identical
+  evidence statements that differ in negation, numeric values, or supported
+  units. Such a conflict returns the safe fallback without calling the model.
+  PR #41 passed both CI workflows; the full local suite reported 822 passed
+  and 5 skipped. The detector flagged no query among the local 24-row holdout
+  or 18-row organizer demo sets. These development sets do not establish
+  general conflict recall or answer accuracy.
+
+The active release path is
+`/opt/energytool-assistant/releases/c58340d197e6825164aca4164b680a02a8593f77`.
+After deployment, the container reported prompt revision
+`claims-user-turns-v7`, and the public `/health/ready` endpoint returned
+`{"status":"ready"}`. This readiness check does not test remote model
+availability. The conflict check is intentionally narrow and does not
+replace an owner-approved source-priority policy or a general semantic
+contradiction evaluator.
