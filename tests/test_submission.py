@@ -5,6 +5,33 @@ import sys
 import zipfile
 
 from package_submission import FILES, build_archive
+from solution import configure_submission_retrieval
+
+
+def test_submission_inherits_shared_platform_base_for_retrieval(monkeypatch):
+    monkeypatch.setenv('LLM_BASE_URL', 'https://platform.example/v1/')
+    monkeypatch.delenv('BASE_URL', raising=False)
+    monkeypatch.delenv('OPENAI_BASE_URL', raising=False)
+    monkeypatch.delenv('EMBEDDER_BASE_URL', raising=False)
+    monkeypatch.delenv('RERANKER_BASE_URL', raising=False)
+
+    configure_submission_retrieval()
+
+    assert os.environ['EMBEDDER_BASE_URL'] == 'https://platform.example/v1'
+    assert os.environ['RERANKER_BASE_URL'] == 'https://platform.example/v1'
+
+
+def test_submission_preserves_explicit_retrieval_configuration(monkeypatch):
+    monkeypatch.setenv('BASE_URL', 'https://platform.example/v1')
+    monkeypatch.delenv('LLM_BASE_URL', raising=False)
+    monkeypatch.delenv('OPENAI_BASE_URL', raising=False)
+    monkeypatch.setenv('EMBEDDER_BASE_URL', '')
+    monkeypatch.setenv('RERANKER_BASE_URL', 'https://reranker.example/v1')
+
+    configure_submission_retrieval()
+
+    assert os.environ['EMBEDDER_BASE_URL'] == ''
+    assert os.environ['RERANKER_BASE_URL'] == 'https://reranker.example/v1'
 
 
 def test_submission_archive_runs_in_clean_directory(tmp_path):
