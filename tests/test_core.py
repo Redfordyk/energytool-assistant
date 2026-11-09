@@ -150,6 +150,24 @@ def test_claims_require_real_quotes_and_matching_numbers():
     assert validate_response('{"claims":[]}', sources) is None
 
 
+def test_claims_reject_altered_or_omitted_units_and_accept_equivalent_percent_format():
+    source = Chunk('test.md', 'Мощность — до 150 кВт. Обслуживание стоит 0,5% от стоимости оборудования.')
+    supported = '{"claims":[{"text":"Мощность составляет до 150 кВт.","source":1,"quote":"Мощность — до 150 кВт."}]}'
+    wrong_unit = supported.replace('150 кВт.', '150 МВт.')
+    missing_unit = supported.replace('150 кВт.', '150.')
+    percent_equivalent = '{"claims":[{"text":"Обслуживание стоит 0.5 процента.","source":1,"quote":"Обслуживание стоит 0,5% от стоимости оборудования."}]}'
+
+    assert validate_response(supported, [source]) == 'Мощность составляет до 150 кВт.'
+    assert validate_response(wrong_unit, [source]) is None
+    assert validate_response(missing_unit, [source]) is None
+    assert validate_response(percent_equivalent, [source]) == 'Обслуживание стоит 0.5 процента.'
+
+
+def test_claims_match_prompt_limit_of_two_claims():
+    payload = '{"claims":[{"text":"Первый факт.","source":1},{"text":"Второй факт.","source":1},{"text":"Третий факт.","source":1}]}'
+    assert validate_response(payload, [Chunk('test.md', 'Факты подтверждены.')]) is None
+
+
 def test_source_only_claims_bind_to_server_evidence_and_reject_null_quotes():
     sources = [Chunk('test.md', 'Срок поставки составляет 10 дней при согласовании.')]
     payload = '{"claims":[{"text":"Срок — 10 дней при согласовании.","source":1}]}'
