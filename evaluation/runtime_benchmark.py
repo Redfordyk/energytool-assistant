@@ -3,6 +3,7 @@
 This measures the configured deployment path. If the model gateway is absent,
 the report explicitly describes the result as a fallback-only measurement.
 """
+
 import argparse
 import asyncio
 import json
@@ -11,7 +12,7 @@ import subprocess
 import time
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -35,10 +36,15 @@ async def benchmark(base_url, request_count=20, concurrency=4, timeout=30):
 
     base_url = base_url.rstrip('/')
     try:
-        code_revision = subprocess.run(
-            ['git', 'rev-parse', 'HEAD'], cwd=Path(__file__).resolve().parents[1],
-            check=True, capture_output=True, text=True,
-        ).stdout.strip()
+        revision_result = await asyncio.to_thread(
+            subprocess.run,
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=Path(__file__).resolve().parents[1],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        code_revision = revision_result.stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         code_revision = None
     limits = httpx.Limits(max_connections=concurrency, max_keepalive_connections=concurrency)
@@ -61,14 +67,13 @@ async def benchmark(base_url, request_count=20, concurrency=4, timeout=30):
                 setup_statuses['error'] += 1
 
         semaphore = asyncio.Semaphore(concurrency)
-        samples = []
 
         async def send(session):
             async with semaphore:
                 started = time.perf_counter()
                 try:
                     response = await client.post(
-                        base_url + f"/api/sessions/{session['id']}/messages",
+                        base_url + f'/api/sessions/{session["id"]}/messages',
                         headers={
                             'Authorization': 'Bearer ' + session['token'],
                             'Idempotency-Key': uuid.uuid4().hex,
@@ -85,24 +90,36 @@ async def benchmark(base_url, request_count=20, concurrency=4, timeout=30):
                         payload = response.json()
                         fallback = payload.get('answer') == FALLBACK
                         trace_id = payload.get('trace_id')
-                    return {'status': str(response.status_code), 'latency_ms': elapsed_ms,
-                            'fallback': fallback, 'trace_id_present': bool(trace_id)}
+                    return {
+                        'status': str(response.status_code),
+                        'latency_ms': elapsed_ms,
+                        'fallback': fallback,
+                        'trace_id_present': bool(trace_id),
+                    }
                 except (httpx.HTTPError, ValueError, KeyError):
-                    return {'status': 'error', 'latency_ms': (time.perf_counter() - started) * 1000,
-                            'fallback': False, 'trace_id_present': False}
+                    return {
+                        'status': 'error',
+                        'latency_ms': (time.perf_counter() - started) * 1000,
+                        'fallback': False,
+                        'trace_id_present': False,
+                    }
 
         results = await asyncio.gather(*(send(session) for session in sessions))
         latency = [item['latency_ms'] for item in results if item['status'] == '200']
         statuses = Counter(item['status'] for item in results)
+
         async def close(session):
             try:
-                await client.post(base_url + f"/api/sessions/{session['id']}/close",
-                                  headers={'Authorization': 'Bearer ' + session['token']})
+                await client.post(
+                    base_url + f'/api/sessions/{session["id"]}/close',
+                    headers={'Authorization': 'Bearer ' + session['token']},
+                )
             except httpx.HTTPError:
                 pass
+
         await asyncio.gather(*(close(session) for session in sessions))
         report = {
-            'measured_at_utc': datetime.now(timezone.utc).isoformat(),
+            'measured_at_utc': datetime.now(UTC).isoformat(),
             'target': base_url,
             'code_revision': code_revision,
             'mode': 'service_ready_path' if api_ready else 'service_unready_path',
@@ -116,9 +133,9 @@ async def benchmark(base_url, request_count=20, concurrency=4, timeout=30):
             'fallback_responses': sum(item['fallback'] for item in results),
             'trace_ids_returned': sum(item['trace_id_present'] for item in results),
             'latency_ms': {
-                'p50': percentile(latency, .50),
-                'p95': percentile(latency, .95),
-                'p99': percentile(latency, .99),
+                'p50': percentile(latency, 0.50),
+                'p95': percentile(latency, 0.95),
+                'p99': percentile(latency, 0.99),
             },
             'limitations': [
                 'Synthetic questions only; no user data.',
@@ -141,8 +158,7 @@ async def main():
     report = await benchmark(args.url, args.requests, args.concurrency, args.timeout)
     rendered = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
-        with open(args.output, 'w', encoding='utf-8') as target:
-            target.write(rendered + '\n')
+        await asyncio.to_thread(Path(args.output).write_text, rendered + '\n', encoding='utf-8')
     print(rendered)
 
 

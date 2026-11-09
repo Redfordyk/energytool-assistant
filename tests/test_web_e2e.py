@@ -1,4 +1,5 @@
 """Browser smoke test; uses an isolated database and no external model."""
+
 import os
 import socket
 import subprocess
@@ -11,23 +12,49 @@ from urllib.request import urlopen
 import pytest
 
 
-@pytest.mark.skipif(os.getenv('RUN_E2E') != '1', reason='Set RUN_E2E=1 and install Playwright browser')
+@pytest.mark.skipif(
+    os.getenv('RUN_E2E') != '1', reason='Set RUN_E2E=1 and install Playwright browser'
+)
 def test_review_and_save_lead_in_browser(tmp_path):
     from playwright.sync_api import expect, sync_playwright
 
     root = Path(__file__).resolve().parents[1]
     env = os.environ.copy()
-    env.update(DATABASE_URL='sqlite:///' + (tmp_path / 'web.db').as_posix(),
-               DATA_DIR=str(tmp_path / 'data'), KNOWLEDGE_DIR=str(tmp_path / 'knowledge'),
-               ADMIN_TOKEN='e2e-admin-secret', REVIEWER_TOKEN='e2e-reviewer-secret')
+    env.update(
+        DATABASE_URL='sqlite:///' + (tmp_path / 'web.db').as_posix(),
+        DATA_DIR=str(tmp_path / 'data'),
+        KNOWLEDGE_DIR=str(tmp_path / 'knowledge'),
+        ADMIN_TOKEN='e2e-admin-secret',
+        REVIEWER_TOKEN='e2e-reviewer-secret',
+    )
     for name in ('LLM_API_KEY', 'OPENAI_API_KEY', 'LLM_BASE_URL', 'BASE_URL', 'OPENAI_BASE_URL'):
         env.pop(name, None)
-    subprocess.run([sys.executable, '-m', 'alembic', 'upgrade', 'head'], cwd=root, env=env, check=True, capture_output=True)
+    subprocess.run(
+        [sys.executable, '-m', 'alembic', 'upgrade', 'head'],
+        cwd=root,
+        env=env,
+        check=True,
+        capture_output=True,
+    )
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
-    server = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(port)],
-                              cwd=root, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    server = subprocess.Popen(
+        [
+            sys.executable,
+            '-m',
+            'uvicorn',
+            'app.main:app',
+            '--host',
+            '127.0.0.1',
+            '--port',
+            str(port),
+        ],
+        cwd=root,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     url = f'http://127.0.0.1:{port}'
     try:
         for _ in range(100):
@@ -42,22 +69,32 @@ def test_review_and_save_lead_in_browser(tmp_path):
             raise RuntimeError('Web server did not start')
         with sync_playwright() as playwright:
             executable = os.getenv('PLAYWRIGHT_CHROMIUM_EXECUTABLE')
-            browser = playwright.chromium.launch(headless=True, **({'executable_path': executable} if executable else {}))
+            browser = playwright.chromium.launch(
+                headless=True, **({'executable_path': executable} if executable else {})
+            )
             page = browser.new_page()
             page.goto(url)
-            expect(page.get_by_role('heading', name='Интеллектуальная система энергоконсалтинга')).to_be_visible()
+            expect(
+                page.get_by_role('heading', name='Интеллектуальная система энергоконсалтинга')
+            ).to_be_visible()
             expect(page.get_by_role('heading', name='Заявка специалисту')).to_be_visible()
             expect(page.locator('.topic-chip')).to_have_count(3)
-            assert page.locator('.welcome-message .message-bubble').evaluate('(element) => element.getBoundingClientRect().height < 170')
+            assert page.locator('.welcome-message .message-bubble').evaluate(
+                '(element) => element.getBoundingClientRect().height < 170'
+            )
             page.set_viewport_size({'width': 375, 'height': 812})
-            assert page.locator('body').evaluate('(element) => element.scrollWidth <= window.innerWidth')
+            assert page.locator('body').evaluate(
+                '(element) => element.scrollWidth <= window.innerWidth'
+            )
             page.set_viewport_size({'width': 1280, 'height': 900})
+
             def lose_first_response(route):
                 if route.request.method == 'POST':
                     assert route.fetch().status == 200
                     route.abort('failed')
                 else:
                     route.continue_()
+
             pattern = '**/api/sessions/*/messages'
             page.route(pattern, lose_first_response)
             page.locator('#question').fill('Здравствуйте')

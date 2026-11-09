@@ -1,10 +1,10 @@
-from concurrent.futures import ThreadPoolExecutor
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import main
+from app import main, security
 from app.database import make_engine, metadata
 from app.security import consume
 
@@ -13,7 +13,9 @@ def test_rate_limit_is_atomic_and_resets(tmp_path):
     engine = make_engine('sqlite:///' + str(tmp_path / 'limit.db'))
     metadata.create_all(engine)
     with ThreadPoolExecutor(max_workers=10) as pool:
-        responses = list(pool.map(lambda _: consume(engine, 'test-client', 'messages', 5, now=600), range(10)))
+        responses = list(
+            pool.map(lambda _: consume(engine, 'test-client', 'messages', 5, now=600), range(10))
+        )
     assert sum(allowed for allowed, _ in responses) == 5
     assert consume(engine, 'test-client', 'messages', 5, now=660)[0]
     assert consume(engine, 'other-client', 'messages', 5, now=600)[0]
@@ -57,8 +59,10 @@ def test_rate_limit_storage_failure_returns_generic_503(tmp_path, monkeypatch):
     engine = make_engine('sqlite:///' + str(tmp_path / 'http.db'))
     metadata.create_all(engine)
     monkeypatch.setattr(main, 'engine', engine)
+
     def fail(*_args):
         raise SQLAlchemyError('private database detail')
+
     monkeypatch.setattr(security, 'consume', fail)
     response = TestClient(main.app).post('/api/sessions')
     assert response.status_code == 503
@@ -69,6 +73,9 @@ def test_overloaded_chat_rejects_without_recording_message(tmp_path, monkeypatch
     engine = make_engine('sqlite:///' + str(tmp_path / 'busy.db'))
     metadata.create_all(engine)
     monkeypatch.setattr(main, 'engine', engine)
+    # Keep this test focused on the in-process overload guard. SQLite serializes
+    # the middleware's rate-limit writes, while PostgreSQL handles them concurrently.
+    monkeypatch.setattr(security, 'consume', lambda *_args: (True, 60))
     monkeypatch.setattr(main, 'CHAT_SLOTS', threading.BoundedSemaphore(1))
     monkeypatch.setattr(main, 'active_knowledge', lambda _engine: ())
     started, release = threading.Event(), threading.Event()
@@ -83,9 +90,17 @@ def test_overloaded_chat_rejects_without_recording_message(tmp_path, monkeypatch
     monkeypatch.setattr(main, 'answer', slow_answer)
     client = TestClient(main.app)
     first, second = client.post('/api/sessions').json(), client.post('/api/sessions').json()
+
     def request(session):
-        return client.post('/api/sessions/' + session['id'] + '/messages',
-                           headers={'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'message-key-1'}, json={'text': 'Вопрос', 'session_version': 0})
+        return client.post(
+            '/api/sessions/' + session['id'] + '/messages',
+            headers={
+                'Authorization': 'Bearer ' + session['token'],
+                'Idempotency-Key': 'message-key-1',
+            },
+            json={'text': 'Вопрос', 'session_version': 0},
+        )
+
     with ThreadPoolExecutor(max_workers=2) as pool:
         future = pool.submit(request, first)
         assert started.wait(timeout=5)
@@ -93,7 +108,10 @@ def test_overloaded_chat_rejects_without_recording_message(tmp_path, monkeypatch
             response = request(second)
             assert response.status_code == 503
             assert response.headers['retry-after'] == '5'
-            history = client.get('/api/sessions/' + second['id'] + '/messages', headers={'Authorization': 'Bearer ' + second['token']})
+            history = client.get(
+                '/api/sessions/' + second['id'] + '/messages',
+                headers={'Authorization': 'Bearer ' + second['token']},
+            )
             assert history.json() == []
         finally:
             release.set()

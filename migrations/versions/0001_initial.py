@@ -3,7 +3,9 @@
 Revision ID: 0001
 Revises:
 """
+
 from alembic import op
+
 from app.database import audit, knowledge, leads, messages, sessions, settings
 
 revision = '0001'

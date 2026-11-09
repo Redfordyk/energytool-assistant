@@ -1,4 +1,5 @@
 """Evaluate retrieval against manually anchored evidence chunks."""
+
 import argparse
 import csv
 import hashlib
@@ -6,7 +7,13 @@ import json
 import re
 from pathlib import Path
 
-from core.rag import RETRIEVAL_CONFIG, expand_retrieval_query, load_knowledge, retrieve, retrieval_query
+from core.rag import (
+    RETRIEVAL_CONFIG,
+    expand_retrieval_query,
+    load_knowledge,
+    retrieval_query,
+    retrieve,
+)
 
 
 def _normalized(text):
@@ -22,14 +29,19 @@ def _resolve_annotations(gold, chunks):
             source = annotation.get('source', '')
             evidence = _normalized(annotation.get('contains', ''))
             if not source or not evidence:
-                errors.append(f'{question_id}[{annotation_index}]: source and contains are required')
+                errors.append(
+                    f'{question_id}[{annotation_index}]: source and contains are required'
+                )
                 continue
             matches = {
-                index for index, chunk in enumerate(chunks)
+                index
+                for index, chunk in enumerate(chunks)
                 if chunk.source == source and evidence in _normalized(chunk.text)
             }
             if not matches:
-                errors.append(f'{question_id}[{annotation_index}]: evidence anchor not found in {source}')
+                errors.append(
+                    f'{question_id}[{annotation_index}]: evidence anchor not found in {source}'
+                )
             targets.append(matches)
         if any(targets):
             resolved[str(question_id)] = targets
@@ -44,8 +56,10 @@ def evaluate(questions_path, knowledge_path, gold_path, cutoffs=(1, 5, 10)):
     gold_path = Path(gold_path)
     with questions_path.open(encoding='utf-8-sig', newline='') as source:
         questions = list(csv.DictReader(source))
-    if not questions or any(not (row.get('id') or '').strip() or not (row.get('question') or '').strip()
-                            for row in questions):
+    if not questions or any(
+        not (row.get('id') or '').strip() or not (row.get('question') or '').strip()
+        for row in questions
+    ):
         raise ValueError('Questions must include non-empty id and question columns')
     question_ids = [row['id'].strip() for row in questions]
     if len(question_ids) != len(set(question_ids)):
@@ -54,8 +68,12 @@ def evaluate(questions_path, knowledge_path, gold_path, cutoffs=(1, 5, 10)):
     missing = set(question_ids) - set(gold)
     extra = set(gold) - set(question_ids)
     if missing or extra:
-        raise ValueError(f'Gold/query ID mismatch: missing={sorted(missing)}, extra={sorted(extra)}')
-    if not cutoffs or any(isinstance(cutoff, bool) or not isinstance(cutoff, int) or cutoff < 1 for cutoff in cutoffs):
+        raise ValueError(
+            f'Gold/query ID mismatch: missing={sorted(missing)}, extra={sorted(extra)}'
+        )
+    if not cutoffs or any(
+        isinstance(cutoff, bool) or not isinstance(cutoff, int) or cutoff < 1 for cutoff in cutoffs
+    ):
         raise ValueError('Cutoffs must be positive integers')
     chunks = load_knowledge(knowledge_path)
     annotations = _resolve_annotations(gold, chunks)
@@ -71,20 +89,26 @@ def evaluate(questions_path, knowledge_path, gold_path, cutoffs=(1, 5, 10)):
         ranked = retrieve(search_query, chunks, limit=len(chunks))
         ranked_indexes = [chunk_indexes[id(chunk)] for chunk in ranked]
         chunk_ranks = {index: rank for rank, index in enumerate(ranked_indexes, 1)}
-        anchor_ranks = [min((chunk_ranks[index] for index in group if index in chunk_ranks), default=None)
-                        for group in expected_groups]
+        anchor_ranks = [
+            min((chunk_ranks[index] for index in group if index in chunk_ranks), default=None)
+            for group in expected_groups
+        ]
         first_rank = min((rank for rank in anchor_ranks if rank is not None), default=None)
-        evidence_hits = {cutoff: sum(rank is not None and rank <= cutoff for rank in anchor_ranks)
-                         for cutoff in cutoffs}
-        rows.append({
-            'id': question_id,
-            'relevant_evidence_count': len(expected_groups),
-            'first_relevant_rank': first_rank,
-            'evidence_hits': {str(cutoff): evidence_hits[cutoff] for cutoff in cutoffs},
-            'evidence_recall': {
-                str(cutoff): evidence_hits[cutoff] / len(expected_groups) for cutoff in cutoffs
-            },
-        })
+        evidence_hits = {
+            cutoff: sum(rank is not None and rank <= cutoff for rank in anchor_ranks)
+            for cutoff in cutoffs
+        }
+        rows.append(
+            {
+                'id': question_id,
+                'relevant_evidence_count': len(expected_groups),
+                'first_relevant_rank': first_rank,
+                'evidence_hits': {str(cutoff): evidence_hits[cutoff] for cutoff in cutoffs},
+                'evidence_recall': {
+                    str(cutoff): evidence_hits[cutoff] / len(expected_groups) for cutoff in cutoffs
+                },
+            }
+        )
     if not rows:
         raise ValueError('No questions matched the gold chunk manifest')
 
@@ -101,15 +125,18 @@ def evaluate(questions_path, knowledge_path, gold_path, cutoffs=(1, 5, 10)):
         metrics[f'query_hit@{cutoff}'] = sum(
             bool(row['evidence_hits'][str(cutoff)]) for row in rows
         ) / len(rows)
-        metrics[f'evidence_recall@{cutoff}'] = sum(
-            row['evidence_hits'][str(cutoff)] for row in rows
-        ) / metrics['evidence_anchors']
+        metrics[f'evidence_recall@{cutoff}'] = (
+            sum(row['evidence_hits'][str(cutoff)] for row in rows) / metrics['evidence_anchors']
+        )
     metrics['mrr@10'] = sum(
-        1 / row['first_relevant_rank'] if row['first_relevant_rank'] and row['first_relevant_rank'] <= 10 else 0
+        1 / row['first_relevant_rank']
+        if row['first_relevant_rank'] and row['first_relevant_rank'] <= 10
+        else 0
         for row in rows
     ) / len(rows)
     metrics['unanswered_evidence@10'] = [
-        row['id'] for row in rows
+        row['id']
+        for row in rows
         if not row['first_relevant_rank'] or row['first_relevant_rank'] > 10
     ]
     return {'metrics': metrics, 'queries': rows}

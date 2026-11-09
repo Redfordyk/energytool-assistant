@@ -1,4 +1,5 @@
 """Create a reproducible submission archive without private task inputs."""
+
 import argparse
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile

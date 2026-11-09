@@ -1,0 +1,8 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".git", ".venv", ".test-benchmark-temp"]
+
+[tool.ruff.format]
+quote-style = "single"
+line-ending = "lf"

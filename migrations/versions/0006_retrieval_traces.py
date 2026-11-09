@@ -3,7 +3,9 @@
 Revision ID: 0006
 Revises: 0005
 """
+
 from alembic import op
+
 from app.database import traces
 
 revision = '0006'

@@ -3,7 +3,6 @@ import os
 import subprocess
 import sys
 import zipfile
-from pathlib import Path
 
 from package_submission import FILES, build_archive
 
@@ -32,8 +31,13 @@ def test_submission_archive_runs_in_clean_directory(tmp_path):
         env.pop(name, None)
     env['DATA_DIR'] = str(data_dir)
     subprocess.run(
-        [sys.executable, 'solution.py'], cwd=tmp_path / 'package', env=env,
-        check=True, capture_output=True, text=True, timeout=20,
+        [sys.executable, 'solution.py'],
+        cwd=tmp_path / 'package',
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
 
     with (tmp_path / 'package' / 'submission.csv').open(encoding='utf-8', newline='') as result:

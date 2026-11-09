@@ -11,12 +11,24 @@ def test_chunk_evaluation_measures_exact_evidence_retrieval(tmp_path):
     questions.write_text('id,question\n1,Какова максимальная мощность?\n', encoding='utf-8')
     knowledge = tmp_path / 'knowledge.zip'
     with zipfile.ZipFile(knowledge, 'w') as archive:
-        archive.writestr('limits.md', '# Предел мощности\nМаксимальная мощность объекта составляет 750 кВт.')
+        archive.writestr(
+            'limits.md', '# Предел мощности\nМаксимальная мощность объекта составляет 750 кВт.'
+        )
         archive.writestr('other.md', '# Другое\nДокумент описывает цену оборудования.')
     gold = tmp_path / 'gold.json'
-    gold.write_text(json.dumps({
-        '1': [{'source': 'limits.md', 'contains': 'Максимальная мощность объекта составляет 750 кВт'}],
-    }), encoding='utf-8')
+    gold.write_text(
+        json.dumps(
+            {
+                '1': [
+                    {
+                        'source': 'limits.md',
+                        'contains': 'Максимальная мощность объекта составляет 750 кВт',
+                    }
+                ],
+            }
+        ),
+        encoding='utf-8',
+    )
 
     report = evaluate(questions, knowledge, gold)
 
@@ -32,9 +44,14 @@ def test_chunk_evaluation_rejects_stale_or_mistyped_evidence(tmp_path):
     with zipfile.ZipFile(knowledge, 'w') as archive:
         archive.writestr('limits.md', '# Предел мощности\n750 кВт.')
     gold = tmp_path / 'gold.json'
-    gold.write_text(json.dumps({
-        '1': [{'source': 'limits.md', 'contains': 'Несуществующее подтверждение'}],
-    }), encoding='utf-8')
+    gold.write_text(
+        json.dumps(
+            {
+                '1': [{'source': 'limits.md', 'contains': 'Несуществующее подтверждение'}],
+            }
+        ),
+        encoding='utf-8',
+    )
 
     with pytest.raises(ValueError, match='evidence anchor not found'):
         evaluate(questions, knowledge, gold)
