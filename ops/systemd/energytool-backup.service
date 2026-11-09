@@ -1,0 +1,16 @@
+[Unit]
+Description=Energytool PostgreSQL and knowledge backup
+After=docker.service
+Requires=docker.service
+ConditionPathExists=/opt/energytool-assistant/.env
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/opt/energytool-assistant/current/ops/backup.sh
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+PrivateTmp=true
+ReadWritePaths=/opt/energytool-assistant/backups
