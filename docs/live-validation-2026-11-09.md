@@ -117,10 +117,17 @@ that the unimplemented recommendation, live handoff, or full dialogue-state
 routing is complete.
 
 The live container configuration reports generator `deepseek-flash` and
-verifier `deepseek-v4-pro`; only boolean presence of the API key was checked,
-and no secret value was read or logged. One organizer demo question about
-east/west roof slopes returned a sourced answer; its trace recorded
-`claim_verification=true`, no fallback, and `query_plan=bm25`. This is a
-single smoke request, not an accuracy or reliability result. No embedder or
-reranker endpoint is configured on the server, so the hybrid retrieval code
-is present but the live deployment currently uses BM25 only.
+verifier `deepseek-v4-pro`. On 2026-11-10, the owner configured the separate
+OpenAI embedding credential in the server-side environment. The key was never
+read into command output or logged. A synthetic request to the OpenAI
+`text-embedding-3-small` endpoint returned HTTP 200 and a 1536-dimensional
+vector. The app container was recreated with the existing release and the new
+environment; PostgreSQL was not restarted. Public `/health/ready` returned
+`{"status":"ready"}`.
+
+A subsequent organizer demo smoke used the hybrid plan `bm25+embeddings_rrf`,
+retrieved 6 evidence fragments, and recorded `claim_verification=true` with no
+fallback. The session was closed after the check. The embedding endpoint
+receives knowledge chunks and search queries to create vectors; generation and
+claim verification remain on DeepSeek. This one smoke request verifies wiring,
+not answer accuracy or retrieval KPI targets, and no reranker is configured.
