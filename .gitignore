@@ -7,6 +7,7 @@ data/
 __pycache__/
 .pytest_cache/
 .pytest-workspace-temp/
+.pytest-tmp/
 submission.csv
 .venv/
 knowledge_store/
