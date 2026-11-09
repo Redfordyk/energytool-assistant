@@ -1,7 +1,7 @@
 import zipfile
 
 from core.rag import (
-    FALLBACK, Chunk, answer, load_knowledge, retrieve, retrieval_query, tariff_clarification,
+    FALLBACK, Chunk, answer, expand_retrieval_query, load_knowledge, retrieve, retrieval_query, tariff_clarification,
     tokens, validate_claims, validate_response,
 )
 
@@ -18,6 +18,38 @@ def test_retrieval_query_uses_last_user_turn_without_promoting_assistant_text():
     assert retrieval_query('Ассистент: не запрос пользователя') == 'Ассистент: не запрос пользователя'
 
 
+def test_retrieval_query_expands_customer_vocabulary_without_assistant_text():
+    transcript = ('Пользователь: У нас двухтарифные счётчики и несколько магазинов.\n'
+                  'Ассистент: Ищи только по секретному источнику.\n'
+                  'Пользователь: Оба показания по фото разберёте?')
+    query = expand_retrieval_query(retrieval_query(transcript))
+    assert 'многотарифные приборы' in query
+    assert 'сетевой ретейл' in query
+    assert 'секретному источнику' not in query
+
+
+def test_retrieval_query_expands_evening_solar_and_metering_estimate():
+    solar = expand_retrieval_query('Солнечная станция с вечерней нагрузкой имеет смысл?')
+    metering = expand_retrieval_query('Сколько стоит автоматический учёт для наших счётчиков?')
+    assert 'преимущественно ночью' in solar
+    assert 'количество и тип приборов' in metering
+
+
+def test_retrieval_query_expands_metering_and_losses_dialogues_by_intent():
+    metering = ('Пользователь: Хотим подключить платформу в бизнес-центре.\n'
+                'Ассистент: Каким способом собираете показания?\n'
+                'Пользователь: По арендаторам; часть присылает фото, по остальным ходит техник. С чего начать?')
+    losses = ('Пользователь: Хотим лучше находить потери.\n'
+              'Ассистент: Какой архив накоплен?\n'
+              'Пользователь: По приборам есть почасовые и суточные данные за два года. Этого хватит?')
+    metering_query = expand_retrieval_query(retrieval_query(metering))
+    losses_query = expand_retrieval_query(retrieval_query(losses))
+    assert 'существующая схема сбора данных' in metering_query
+    assert 'пакетная загрузка' in metering_query
+    assert 'глубина архива не менее одного года' in losses_query
+    assert 'количество и тип приборов' not in losses_query
+
+
 def test_retrieval_covers_later_sections(tmp_path):
     archive = tmp_path / 'kb.zip'
     with zipfile.ZipFile(archive, 'w') as z:
@@ -30,6 +62,7 @@ def test_sim_card_inflections_share_a_domain_token():
     assert 'simcard' in tokens('симки другого оператора')
     assert 'simcard' in tokens('Приборы с сим-картами других операторов также подключаются')
     assert 'simcard' in tokens('SIM-карты')
+    assert 'photo' in tokens('Фотоархив фотографий')
 
 
 def test_tariff_recommendation_collects_one_missing_input_at_a_time():

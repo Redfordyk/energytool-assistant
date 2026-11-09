@@ -6,7 +6,7 @@ import math
 from collections import Counter
 from pathlib import Path
 
-from core.rag import RETRIEVAL_CONFIG, load_knowledge, retrieve, retrieval_query, tokens
+from core.rag import RETRIEVAL_CONFIG, expand_retrieval_query, load_knowledge, retrieve, retrieval_query, tokens
 
 
 WIDTHS = (3, 4, 5, 6)
@@ -32,7 +32,7 @@ def evaluate(questions_path, knowledge_path, gold_path):
         primary = min(expected, key=lambda source_name: (source_frequency[source_name], source_name))
         rows.append({
             'id': str(row['id']),
-            'query': retrieval_query(row['question']),
+            'query': expand_retrieval_query(retrieval_query(row['question'])),
             'expected': expected,
             'group': primary,
         })

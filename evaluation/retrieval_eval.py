@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from core.rag import RETRIEVAL_CONFIG, load_knowledge, retrieve, retrieval_query
+from core.rag import RETRIEVAL_CONFIG, expand_retrieval_query, load_knowledge, retrieve, retrieval_query
 
 
 def evaluate(questions_path, knowledge_path, gold_path, cutoffs=(1, 5, 10)):
@@ -18,7 +18,8 @@ def evaluate(questions_path, knowledge_path, gold_path, cutoffs=(1, 5, 10)):
         expected = set(gold.get(str(row['id']), []))
         if not expected:
             continue
-        ranked_chunks = retrieve(retrieval_query(row['question']), chunks, limit=100)
+        query = expand_retrieval_query(retrieval_query(row['question']))
+        ranked_chunks = retrieve(query, chunks, limit=100)
         ranked_sources = list(dict.fromkeys(chunk.source for chunk in ranked_chunks))
         first_rank = min((rank for rank, source in enumerate(ranked_sources, 1) if source in expected), default=None)
         item = {'id': str(row['id']), 'expected': sorted(expected), 'ranked': ranked_sources,
