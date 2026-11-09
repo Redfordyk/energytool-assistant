@@ -43,6 +43,14 @@ def require_open_session(db, session_id):
         raise HTTPException(409, 'Диалог закрыт')
 
 
+def cleanup_expired_drafts(engine, now=None):
+    cutoff = int(time.time()) if now is None else int(now)
+    with engine.begin() as db:
+        result = db.execute(delete(lead_drafts).where(
+            lead_drafts.c.lead_id.is_(None), lead_drafts.c.expires_at < cutoff))
+        return result.rowcount or 0
+
+
 def prepare(engine, session_id, key, name, phone, company):
     validate_key(key)
     name, company = name.strip(), company.strip()
@@ -53,8 +61,8 @@ def prepare(engine, session_id, key, name, phone, company):
     with engine.begin() as db:
         lock_session(db, session_id)
         require_open_session(db, session_id)
-        db.execute(delete(lead_drafts).where(lead_drafts.c.session_id == session_id,
-                   lead_drafts.c.lead_id.is_(None), lead_drafts.c.expires_at < int(time.time())))
+        db.execute(delete(lead_drafts).where(
+            lead_drafts.c.lead_id.is_(None), lead_drafts.c.expires_at < int(time.time())))
         previous = db.execute(select(lead_drafts.c.lead_id).where(
             lead_drafts.c.session_id == session_id, lead_drafts.c.request_key == key)).first()
         if previous and previous.lead_id is not None:

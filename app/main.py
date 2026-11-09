@@ -1,10 +1,12 @@
 import hashlib
 import json
+import logging
 import os
 import secrets
 import threading
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -20,12 +22,37 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import audit, knowledge, make_engine, message_requests, messages, session_states, sessions, traces
 from app.governance import active_knowledge, active_knowledge_snapshot, change_revision, register, require_admin, require_role
-from app.lead_service import cancel as cancel_lead, confirm as confirm_lead, lock_session, prepare as prepare_lead, validate_key
+from app.lead_service import cancel as cancel_lead, cleanup_expired_drafts, confirm as confirm_lead, lock_session, prepare as prepare_lead, validate_key
 from app.security import RequestGuard
 from core.rag import answer
 
-app = FastAPI(title='Energytool consultant')
 engine = make_engine()
+
+
+def _expired_draft_cleanup_loop(stop):
+    while not stop.is_set():
+        try:
+            cleanup_expired_drafts(engine)
+        except SQLAlchemyError:
+            logging.getLogger(__name__).warning('Expired lead draft cleanup failed')
+        stop.wait(3600)
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    _app.state.cleanup_stop = threading.Event()
+    worker = threading.Thread(target=_expired_draft_cleanup_loop,
+                              args=(_app.state.cleanup_stop,),
+                              name='expired-lead-draft-cleanup', daemon=True)
+    worker.start()
+    try:
+        yield
+    finally:
+        _app.state.cleanup_stop.set()
+        worker.join(timeout=10)
+
+
+app = FastAPI(title='Energytool consultant', lifespan=lifespan)
 app.add_middleware(RequestGuard, engine_provider=lambda: engine)
 app.mount('/assets', StaticFiles(directory=Path(__file__).with_name('static')), name='assets')
 SESSION_LOCKS = tuple(threading.Lock() for _ in range(64))
