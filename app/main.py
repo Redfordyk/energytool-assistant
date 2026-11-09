@@ -1,22 +1,22 @@
 import hashlib
-import os
 import re
 import secrets
-import sqlite3
 import threading
-import zipfile
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import insert, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from core.rag import answer, load_knowledge
+from app.database import audit, knowledge, lead_consents, leads, make_engine, messages, sessions
+from app.governance import active_knowledge, change_revision, register, require_admin, require_role
+from core.rag import FALLBACK, answer
 
 app = FastAPI(title='Energytool consultant')
-DB = os.getenv('DATABASE_PATH', 'energytool.db')
-# Bounded lock striping keeps requests in one session ordered without
-# serializing every visitor or accumulating a lock per session forever.
+engine = make_engine()
 SESSION_LOCKS = tuple(threading.Lock() for _ in range(64))
 
 
@@ -25,28 +25,12 @@ def session_lock(session_id):
     return SESSION_LOCKS[index % len(SESSION_LOCKS)]
 
 
-def connect():
-    connection = sqlite3.connect(DB, timeout=10)
-    connection.execute('PRAGMA foreign_keys=ON')
-    return connection
-
-
-def init_db():
-    with connect() as db:
-        db.executescript('''CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), role TEXT NOT NULL, content TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), request_key TEXT NOT NULL, name TEXT NOT NULL, phone TEXT NOT NULL, company TEXT NOT NULL, UNIQUE(session_id, request_key));''')
-
-
-init_db()
-
-
 def authorize(session_id, authorization):
-    token = (authorization or '').removeprefix('Bearer ')
+    token = authorization[7:] if authorization.startswith('Bearer ') else ''
     digest = hashlib.sha256(token.encode()).hexdigest()
-    with connect() as db:
-        row = db.execute('SELECT token_hash FROM sessions WHERE id=?', (session_id,)).fetchone()
-    if not row or not secrets.compare_digest(row[0], digest):
+    with engine.connect() as db:
+        stored = db.execute(select(sessions.c.token_hash).where(sessions.c.id == session_id)).scalar_one_or_none()
+    if not token or not stored or not secrets.compare_digest(stored, digest):
         raise HTTPException(404, 'Диалог не найден')
 
 
@@ -67,38 +51,46 @@ def index():
     return FileResponse(Path(__file__).with_name('index.html'))
 
 
+@app.get('/admin')
+def admin_page():
+    return FileResponse(Path(__file__).with_name('admin.html'))
+
+
 @app.post('/api/sessions')
 def create_session():
     session_id, token = secrets.token_urlsafe(24), secrets.token_urlsafe(32)
-    with connect() as db:
-        db.execute('INSERT INTO sessions VALUES (?,?)', (session_id, hashlib.sha256(token.encode()).hexdigest()))
+    with engine.begin() as db:
+        db.execute(insert(sessions).values(id=session_id, token_hash=hashlib.sha256(token.encode()).hexdigest()))
     return {'id': session_id, 'token': token}
+
+
+def read_history(db, session_id):
+    rows = db.execute(select(messages.c.role, messages.c.content).where(messages.c.session_id == session_id).order_by(messages.c.id))
+    return [{'role': row.role, 'content': row.content} for row in rows]
 
 
 @app.get('/api/sessions/{session_id}/messages')
 def history(session_id: str, authorization: str = Header(default='')):
     authorize(session_id, authorization)
-    with connect() as db:
-        rows = db.execute('SELECT role, content FROM messages WHERE session_id=? ORDER BY id', (session_id,)).fetchall()
-    return [{'role': role, 'content': content} for role, content in rows]
+    with engine.connect() as db:
+        return read_history(db, session_id)
 
 
 @app.post('/api/sessions/{session_id}/messages')
 def chat(session_id: str, message: Message, authorization: str = Header(default='')):
     authorize(session_id, authorization)
-    text = message.text.strip()
-    if not text:
+    question = message.text.strip()
+    if not question:
         raise HTTPException(422, 'Введите сообщение')
-    with session_lock(session_id):
-        previous = history(session_id, authorization)
-        path = Path(os.getenv('DATA_DIR', 'data')) / 'knowledge-base.zip'
-        try:
-            result = answer(text, load_knowledge(path), previous)
-        except (OSError, ValueError, zipfile.BadZipFile):
-            from core.rag import FALLBACK
-            result = FALLBACK
-        with connect() as db:
-            db.executemany('INSERT INTO messages(session_id,role,content) VALUES (?,?,?)', [(session_id, 'user', text), (session_id, 'assistant', result)])
+    with session_lock(session_id), engine.begin() as db:
+        if db.dialect.name == 'postgresql':
+            # The database lock serializes the session across application workers.
+            db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': int.from_bytes(hashlib.sha256(session_id.encode()).digest()[:8], 'big', signed=True)})
+        previous = read_history(db, session_id)
+        chunks = active_knowledge(engine)
+        result = answer(question, chunks, previous) if chunks else FALLBACK
+        db.execute(insert(messages), [{'session_id': session_id, 'role': 'user', 'content': question},
+                                      {'session_id': session_id, 'role': 'assistant', 'content': result}])
     return {'answer': result}
 
 
@@ -107,9 +99,47 @@ def lead(session_id: str, lead: Lead, authorization: str = Header(default='')):
     authorize(session_id, authorization)
     if not lead.consent or not re.fullmatch(r'[+\d ()-]{5,30}', lead.phone) or not 10 <= len(re.sub(r'\D', '', lead.phone)) <= 15 or not lead.name.strip() or not lead.company.strip():
         raise HTTPException(422, 'Проверьте контакты и подтвердите согласие')
-    with connect() as db:
-        db.execute('INSERT OR IGNORE INTO leads(session_id,request_key,name,phone,company) VALUES (?,?,?,?,?)', (session_id, lead.request_key, lead.name.strip(), lead.phone.strip(), lead.company.strip()))
-        row = db.execute('SELECT id,name,phone,company FROM leads WHERE session_id=? AND request_key=?', (session_id, lead.request_key)).fetchone()
-        if row[1:] != (lead.name.strip(), lead.phone.strip(), lead.company.strip()):
+    values = dict(session_id=session_id, request_key=lead.request_key, name=lead.name.strip(), phone=lead.phone.strip(), company=lead.company.strip())
+    with engine.begin() as db:
+        dialect_insert = pg_insert if db.dialect.name == 'postgresql' else sqlite_insert
+        inserted = db.execute(dialect_insert(leads).values(**values).on_conflict_do_nothing(index_elements=['session_id', 'request_key']))
+        row = db.execute(select(leads).where(leads.c.session_id == session_id, leads.c.request_key == lead.request_key)).one()
+        if (row.name, row.phone, row.company) != (values['name'], values['phone'], values['company']):
             raise HTTPException(409, 'Ключ уже использован для другой заявки')
-    return {'id': row[0], 'status': 'saved'}
+        lead_id = row.id
+        if inserted.rowcount == 1:
+            db.execute(insert(lead_consents).values(lead_id=lead_id, purpose='demo_local_storage'))
+    return {'id': lead_id, 'status': 'saved'}
+
+
+@app.get('/api/admin/knowledge')
+def knowledge_list(role: str = Depends(require_role)):
+    with engine.connect() as db:
+        rows = db.execute(select(knowledge).order_by(knowledge.c.created_at.desc())).mappings().all()
+    return [dict(row) for row in rows]
+
+
+@app.get('/api/admin/sessions/{session_id}/messages')
+def review_history(session_id: str, role: str = Depends(require_role)):
+    with engine.begin() as db:
+        exists = db.execute(select(sessions.c.id).where(sessions.c.id == session_id)).first()
+        if exists is None:
+            raise HTTPException(404, 'Диалог не найден')
+        result = read_history(db, session_id)
+        db.execute(insert(audit).values(action='session.review', actor=role, subject=session_id))
+    return result
+
+
+@app.post('/api/admin/knowledge/register')
+def knowledge_register(role: str = Depends(require_role)):
+    require_admin(role)
+    return register(engine, role)
+
+
+@app.post('/api/admin/knowledge/{revision}/{action}')
+def knowledge_action(revision: str, action: str, role: str = Depends(require_role)):
+    require_admin(role)
+    if action not in ('approve', 'activate', 'revoke'):
+        raise HTTPException(404, 'Действие не найдено')
+    change_revision(engine, revision, role, action)
+    return {'sha256': revision, 'action': action}
