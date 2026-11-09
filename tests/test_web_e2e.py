@@ -48,6 +48,7 @@ def test_review_and_save_lead_in_browser(tmp_path):
             expect(page.get_by_role('heading', name='Интеллектуальная система энергоконсалтинга')).to_be_visible()
             expect(page.get_by_role('heading', name='Заявка специалисту')).to_be_visible()
             expect(page.locator('.topic-chip')).to_have_count(3)
+            assert page.locator('.welcome-message .message-bubble').evaluate('(element) => element.getBoundingClientRect().height < 170')
             page.set_viewport_size({'width': 375, 'height': 812})
             assert page.locator('body').evaluate('(element) => element.scrollWidth <= window.innerWidth')
             page.set_viewport_size({'width': 1280, 'height': 900})
