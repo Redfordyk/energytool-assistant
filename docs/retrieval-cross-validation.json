@@ -24,10 +24,15 @@
     "algorithm": "BM25",
     "token_prefix_length": 5,
     "k1": 0.7,
-    "b": 0.25
+    "b": 0.25,
+    "token_aliases": [
+      "симк* -> simcard",
+      "сим -> simcard",
+      "sim -> simcard"
+    ]
   },
-  "current_config_mrr@10": 0.8981481481481483,
-  "grouped_cross_validated_mrr@10": 0.8611111111111112,
+  "current_config_mrr@10": 0.9351851851851851,
+  "grouped_cross_validated_mrr@10": 0.9351851851851851,
   "folds": [
     {
       "held_out_primary_source": "00-reference/01-numbers-and-indicators.md",
@@ -161,11 +166,11 @@
         "k1": 0.7,
         "b": 0.25
       },
-      "mrr@10": 0.5555555555555555,
+      "mrr@10": 0.7777777777777778,
       "queries": [
         {
           "id": "5",
-          "rank": 3
+          "rank": 1
         },
         {
           "id": "6",
@@ -207,15 +212,15 @@
       "train_questions": 17,
       "test_questions": 1,
       "selected_parameters": {
-        "token_prefix_length": 4,
+        "token_prefix_length": 5,
         "k1": 0.7,
-        "b": 1.0
+        "b": 0.25
       },
-      "mrr@10": 0.3333333333333333,
+      "mrr@10": 1.0,
       "queries": [
         {
           "id": "16",
-          "rank": 3
+          "rank": 1
         }
       ]
     },

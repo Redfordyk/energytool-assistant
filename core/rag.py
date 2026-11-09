@@ -30,13 +30,22 @@ RETRIEVAL_CONFIG = {
     'token_prefix_length': TOKEN_PREFIX_LENGTH,
     'k1': BM25_K1,
     'b': BM25_B,
+    'token_aliases': ['симк* -> simcard', 'сим -> simcard', 'sim -> simcard'],
 }
 
 
-def tokens(text):
+def tokens(text, prefix_length=TOKEN_PREFIX_LENGTH):
     # Prefix matching helps Russian inflections without downloading a stemmer.
-    return [w[:TOKEN_PREFIX_LENGTH] for w in TOKEN.findall(text.lower().replace('ё', 'е'))
-            if len(w) >= 3 and w[:TOKEN_PREFIX_LENGTH] not in STOP_WORDS]
+    result = []
+    for word in TOKEN.findall(text.lower().replace('ё', 'е')):
+        if len(word) < 3:
+            continue
+        token = word[:prefix_length]
+        if token in ('сим', 'sim') or token.startswith('симк'):
+            token = 'simcard'
+        if token not in STOP_WORDS:
+            result.append(token)
+    return result
 
 
 @dataclass(frozen=True)

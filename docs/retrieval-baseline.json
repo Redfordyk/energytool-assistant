@@ -7,12 +7,17 @@
       "algorithm": "BM25",
       "token_prefix_length": 5,
       "k1": 0.7,
-      "b": 0.25
+      "b": 0.25,
+      "token_aliases": [
+        "симк* -> simcard",
+        "сим -> simcard",
+        "sim -> simcard"
+      ]
     },
-    "recall@1": 0.8333333333333334,
+    "recall@1": 0.8888888888888888,
     "recall@5": 1.0,
     "recall@10": 1.0,
-    "mrr@10": 0.8981481481481483,
+    "mrr@10": 0.9351851851851851,
     "misses@10": [],
     "source_level_only": true
   },
@@ -132,9 +137,9 @@
         "20-products/22-askue.md"
       ],
       "ranked": [
+        "20-products/22-askue.md",
         "10-energy/10-market.md",
         "10-energy/17-faq.md",
-        "20-products/22-askue.md",
         "20-products/25-meter-reading.md",
         "00-reference/01-numbers-and-indicators.md",
         "20-products/24-losses.md",
@@ -149,7 +154,7 @@
         "00-reference/03-calculation-and-requests.md",
         "00-reference/00-product-map.md"
       ],
-      "first_relevant_rank": 3
+      "first_relevant_rank": 1
     },
     {
       "id": "6",
