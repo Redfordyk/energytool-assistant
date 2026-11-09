@@ -6,6 +6,7 @@ data/
 *.zip
 __pycache__/
 .pytest_cache/
+.pytest-workspace-temp/
 submission.csv
 .venv/
 knowledge_store/
