@@ -75,7 +75,9 @@ def test_overloaded_chat_rejects_without_recording_message(tmp_path, monkeypatch
 
     def slow_answer(*_args):
         started.set()
-        assert release.wait(timeout=5)
+        # SQLite may wait up to its configured 10-second lock timeout before
+        # the second request reaches the process-level overload guard.
+        assert release.wait(timeout=15)
         return 'Ответ'
 
     monkeypatch.setattr(main, 'answer', slow_answer)
@@ -86,7 +88,7 @@ def test_overloaded_chat_rejects_without_recording_message(tmp_path, monkeypatch
                            headers={'Authorization': 'Bearer ' + session['token'], 'Idempotency-Key': 'message-key-1'}, json={'text': 'Вопрос', 'session_version': 0})
     with ThreadPoolExecutor(max_workers=2) as pool:
         future = pool.submit(request, first)
-        assert started.wait(timeout=3)
+        assert started.wait(timeout=5)
         try:
             response = request(second)
             assert response.status_code == 503
@@ -95,4 +97,4 @@ def test_overloaded_chat_rejects_without_recording_message(tmp_path, monkeypatch
             assert history.json() == []
         finally:
             release.set()
-        assert future.result(timeout=5).status_code == 200
+        assert future.result(timeout=20).status_code == 200

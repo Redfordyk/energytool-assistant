@@ -150,6 +150,41 @@ def retrieval_query(question):
     return '\n'.join(turn[-1000:] for turn in user_turns[-4:])
 
 
+_TARIFF_SELECTION = re.compile(
+    r'(?:какой|какую|выб\w*|подоб\w*|подбир\w*|выгодн\w*).{0,35}(?:тариф|ценов\w* катег)|'
+    r'(?:тариф|ценов\w* катег).{0,35}(?:выб\w*|подоб\w*|подбир\w*|выгодн\w*|подход\w*)', re.I)
+_POWER_VALUE = re.compile(r'\b\d+(?:[.,]\d+)?\s*(?:квт|мвт|ква|мва)\b', re.I)
+_VOLTAGE_VALUE = re.compile(r'\b(?:0[.,]4|\d{1,3})\s*(?:кв|кv|киловольт)\b', re.I)
+
+
+def tariff_clarification(question, history=()):
+    """Ask for one missing tariff input before making a recommendation."""
+    if not _TARIFF_SELECTION.search(question):
+        return None
+    recent = list(history)[-8:]
+    assistant_prompts = [
+        message['content'].lower() for message in recent
+        if message.get('role') == 'assistant' and isinstance(message.get('content'), str)
+    ]
+    is_tariff_follow_up = any(
+        'максимальная мощность объекта указана' in content
+        or 'уровень напряжения указан' in content
+        for content in assistant_prompts
+    )
+    user_context = question
+    if is_tariff_follow_up:
+        user_context += '\n' + '\n'.join(
+            message['content'] for message in recent
+            if message.get('role') == 'user' and isinstance(message.get('content'), str)
+        )
+    if not _POWER_VALUE.search(user_context):
+        return ('Чтобы определить подходящую ценовую категорию, какая максимальная мощность '
+                'объекта указана в договоре или счёте?')
+    if not _VOLTAGE_VALUE.search(user_context):
+        return 'Какой уровень напряжения указан в договоре или счёте объекта?'
+    return None
+
+
 def validate_claims(raw, sources):
     """Validate claim structure and bind each claim to a retrieved chunk.
 
@@ -234,6 +269,12 @@ def answer(question, chunks, history=(), diagnostics=None):
         diagnostics['model_name'] = model if base and key else None
     if not chunks:
         return finish(FALLBACK, 'no_active_knowledge')
+    clarification = tariff_clarification(question, history)
+    if clarification:
+        if diagnostics is not None:
+            diagnostics['intent'] = 'tariff_recommendation'
+            diagnostics['query_plan'] = 'clarify_missing_tariff_input'
+        return finish(clarification)
     if not base or not key:
         return finish(FALLBACK, 'model_not_configured')
     deadline = time.monotonic() + 25
