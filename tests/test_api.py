@@ -200,11 +200,16 @@ def test_draft_expiry_and_session_isolation(tmp_path, monkeypatch):
     monkeypatch.setattr(lead_service.time, 'time', lambda: 1000)
     client = TestClient(main.app)
     first, second = client.post('/api/sessions').json(), client.post('/api/sessions').json()
-    auth = lambda session: {
-        'Authorization': 'Bearer ' + session['token'],
-        'Idempotency-Key': '12345678',
-    }
-    url = lambda session: '/api/sessions/' + session['id']
+
+    def auth(session):
+        return {
+            'Authorization': 'Bearer ' + session['token'],
+            'Idempotency-Key': '12345678',
+        }
+
+    def url(session):
+        return '/api/sessions/' + session['id']
+
     prepared = client.post(
         url(first) + '/lead-drafts',
         headers=auth(first),
