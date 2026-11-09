@@ -1,6 +1,6 @@
 import zipfile
 
-from core.rag import FALLBACK, Chunk, answer, load_knowledge, retrieve, retrieval_query, validate_claims, validate_response
+from core.rag import FALLBACK, Chunk, answer, load_knowledge, retrieve, retrieval_query, tokens, validate_claims, validate_response
 
 
 def test_retrieval_query_uses_last_user_turn_without_promoting_assistant_text():
@@ -21,6 +21,12 @@ def test_retrieval_covers_later_sections(tmp_path):
         z.writestr('product.md', '# Введение\n' + 'текст ' * 500 + '\n# Солнце\nФасадные панели применяются при определённых условиях.')
     chunks = load_knowledge(archive)
     assert any('Фасадные' in c.text for c in retrieve('фасадные панели', chunks))
+
+
+def test_sim_card_inflections_share_a_domain_token():
+    assert 'simcard' in tokens('симки другого оператора')
+    assert 'simcard' in tokens('Приборы с сим-картами других операторов также подключаются')
+    assert 'simcard' in tokens('SIM-карты')
 
 
 def test_no_model_fails_closed(monkeypatch):
