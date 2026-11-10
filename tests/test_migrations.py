@@ -49,12 +49,16 @@ def test_dialogue_state_migration_upgrades_legacy_schema(tmp_path, monkeypatch):
         draft_columns = {row[1] for row in db.execute(text('PRAGMA table_info(lead_drafts)')).all()}
         trace = db.execute(
             text(
-                'SELECT dialogue_state_before, dialogue_state_after '
+                'SELECT dialogue_state_before, dialogue_state_after, escalation_reason '
                 "FROM retrieval_traces WHERE trace_id = 'legacy-trace'"
             )
         ).one()
+        trace_columns = {
+            row[1] for row in db.execute(text('PRAGMA table_info(retrieval_traces)')).all()
+        }
     engine.dispose()
 
     assert states == {'closed-session': 'CLOSED', 'active-session': 'CONSULTING'}
     assert 'return_state' in draft_columns
-    assert tuple(trace) == ('NEW', 'CONSULTING')
+    assert tuple(trace) == ('NEW', 'CONSULTING', None)
+    assert 'escalation_reason' in trace_columns

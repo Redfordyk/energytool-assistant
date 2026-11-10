@@ -16,7 +16,7 @@ These tests exercise production validators directly; they are functional unit co
 
 `tests/test_concurrent_chat.py` additionally opens 50 unrelated session locks together and, with PostgreSQL plus a deterministic blocked model stub, sends 50 concurrent chats. It verifies the configured four-chat capacity, 46 overload responses, and that rejected requests write no message rows. This is an overload-control contract, not a sustained 50-user latency or model throughput benchmark.
 
-Direct requests to speak with a specialist are routed without retrieval or an LLM call. The session enters `LEAD_OFFERED`; drafting and cancellation preserve that return state, and no lead is stored until the user confirms consent. Explicit negation and assistant text inside supplied transcripts do not trigger the route.
+Direct requests to speak with a specialist are routed without retrieval or an LLM call. Unanswerable and conflicting evidence also produce a typed escalation offer in the trace (`insufficient_knowledge`, `pricing_unknown`, or `complex_case`). The session enters `LEAD_OFFERED`; drafting and cancellation preserve that return state, and no lead is stored until the user confirms consent. Explicit negation and assistant text inside supplied transcripts do not trigger a direct-request route.
 
 Run the complete suite, including browser E2E, with:
 

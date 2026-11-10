@@ -265,6 +265,7 @@ def test_conflicting_retrieved_evidence_fails_closed_before_model_call(
 
     assert result == FALLBACK
     assert diagnostic['fallback_reason'] == 'conflicting_evidence'
+    assert diagnostic['escalation_reason'] == 'complex_case'
     assert gateway.chat_calls == 0
 
 

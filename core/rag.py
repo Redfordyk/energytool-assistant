@@ -19,7 +19,11 @@ import httpx
 
 from core.hybrid import RETRIEVAL_ERRORS, bounded_timeout, fuse, rerank, semantic_rank
 
-FALLBACK = 'Не могу достоверно ответить по доступной базе знаний. Уточните задачу или обратитесь к специалисту.'
+FALLBACK = (
+    'Не могу достоверно ответить по доступной базе знаний. Уточните задачу или заполните форму '
+    '«Заявка специалисту»; заявка сохранится только после вашего согласия. '
+    'В демонстрационном режиме обращение специалистам не отправляется.'
+)
 ESCALATION_OFFER = (
     'Могу подготовить заявку специалисту. Заполните форму «Заявка специалисту», '
     'проверьте данные и подтвердите согласие перед сохранением. '
@@ -224,6 +228,16 @@ _ESCALATION_NEGATION = re.compile(
     r'\b(?:не|нет|без)\s*$',
     re.IGNORECASE,
 )
+_PRICING_QUESTION = re.compile(
+    r'\b(?:цен\w*|стоимост\w*|сколько\s+(?:стоит|будет)|тариф\w*)\b', re.IGNORECASE
+)
+_FALLBACK_ESCALATION_REASONS = {
+    'no_active_knowledge': 'insufficient_knowledge',
+    'no_retrieval_evidence': 'insufficient_knowledge',
+    'conflicting_evidence': 'complex_case',
+    'invalid_claim_payload': 'complex_case',
+    'claim_verification_failed': 'complex_case',
+}
 
 
 def customer_requested_escalation(question):
@@ -593,6 +607,13 @@ def answer(question, chunks, history=(), diagnostics=None):
     def finish(result, reason=None):
         if diagnostics is not None:
             diagnostics['fallback_reason'] = reason
+            if reason:
+                escalation_reason = _FALLBACK_ESCALATION_REASONS.get(reason)
+                if escalation_reason == 'insufficient_knowledge' and _PRICING_QUESTION.search(
+                    question
+                ):
+                    escalation_reason = 'pricing_unknown'
+                diagnostics['escalation_reason'] = escalation_reason
             diagnostics['total_latency_ms'] = round((time.monotonic() - started) * 1000)
         return result
 

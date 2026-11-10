@@ -146,6 +146,7 @@ traces = Table(
     Column('prompt_token_count', Integer),
     Column('completion_token_count', Integer),
     Column('fallback_reason', String(64)),
+    Column('escalation_reason', String(40)),
     Column('knowledge_revision', String(64)),
     Column('created_at', DateTime(timezone=True), server_default=func.now(), nullable=False),
     UniqueConstraint('session_id', 'idempotency_key', name='uq_retrieval_trace_session_request'),
