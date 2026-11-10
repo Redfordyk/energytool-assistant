@@ -40,6 +40,7 @@ def test_customer_requested_escalation_enters_reversible_lead_flow(tmp_path, mon
         ).one()
     assert trace.intent == 'customer_requested_escalation'
     assert trace.query_plan == 'deterministic_escalation_offer'
+    assert trace.escalation_reason == 'customer_requested'
 
     lead_key = 'lead-escalation-0001'
     lead_headers = {**auth, 'Idempotency-Key': lead_key}
@@ -75,7 +76,7 @@ def test_sessions_and_lead_confirmation(tmp_path, monkeypatch):
         ).status_code
         == 200
     )
-    assert client.get(url, headers=auth).json()['state'] == DialogueState.CONSULTING.value
+    assert client.get(url, headers=auth).json()['state'] == DialogueState.LEAD_OFFERED.value
     trace_id = client.post(
         url + '/messages',
         headers=chat_auth,
@@ -84,7 +85,7 @@ def test_sessions_and_lead_confirmation(tmp_path, monkeypatch):
     with engine.connect() as db:
         trace = db.execute(select(traces).where(traces.c.trace_id == trace_id)).one()
     assert trace.dialogue_state_before == DialogueState.NEW.value
-    assert trace.dialogue_state_after == DialogueState.CONSULTING.value
+    assert trace.dialogue_state_after == DialogueState.LEAD_OFFERED.value
     payload = {'name': 'Иван Иванов', 'phone': '8 999 123-45-67', 'company': 'Тест'}
     fake_confirmation = {'confirmation_token': 'x' * 32, 'consent': True}
     assert client.post(url + '/leads', headers=auth, json=fake_confirmation).status_code == 409
@@ -279,7 +280,7 @@ def test_new_message_invalidates_pending_lead_preview(tmp_path, monkeypatch):
         json={'text': 'Уточню описание задачи', 'session_version': 0},
     )
     assert chat_response.status_code == 200
-    assert client.get(url, headers=lead_headers).json()['state'] == DialogueState.CONSULTING.value
+    assert client.get(url, headers=lead_headers).json()['state'] == DialogueState.LEAD_OFFERED.value
     assert (
         client.post(
             url + '/leads',

@@ -427,6 +427,7 @@ def chat(
                     prompt_token_count=diagnostic.get('prompt_token_count'),
                     completion_token_count=diagnostic.get('completion_token_count'),
                     fallback_reason=diagnostic.get('fallback_reason'),
+                    escalation_reason=diagnostic.get('escalation_reason'),
                     knowledge_revision=knowledge_revision,
                 )
             )

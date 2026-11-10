@@ -84,9 +84,17 @@ def test_chat_trace_is_retrievable_by_reviewer_without_message_text(tmp_path, mo
     assert trace['trace_id'] == trace_id
     assert trace['state_before'] == 0 and trace['state_after'] == 1
     assert trace['fallback_reason'] == 'no_active_knowledge'
+    assert trace['escalation_reason'] == 'insufficient_knowledge'
     assert trace['knowledge_revision'] is None
     assert trace['evidence_ids'] == []
     assert trace['total_latency_ms'] >= 0
+    assert (
+        client.get(
+            '/api/sessions/' + session['id'],
+            headers={'Authorization': 'Bearer ' + session['token']},
+        ).json()['state']
+        == 'LEAD_OFFERED'
+    )
     assert 'idempotency_key' not in trace
     assert 'Личный вопрос без настроенной базы' not in reviewer.text
     assert client.get('/api/admin/traces/' + trace_id).status_code == 401

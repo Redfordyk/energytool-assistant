@@ -223,6 +223,18 @@ def test_no_model_fails_closed(monkeypatch):
     assert answer('Здравствуйте, сколько стоит?', []) == FALLBACK
 
 
+def test_unanswerable_pricing_request_offers_specialist_with_typed_reason():
+    from app.dialogue import DialogueState, state_after_answer
+
+    diagnostics = {}
+    result = answer('Сколько стоит решение?', [], diagnostics=diagnostics)
+
+    assert result == FALLBACK
+    assert diagnostics['fallback_reason'] == 'no_active_knowledge'
+    assert diagnostics['escalation_reason'] == 'pricing_unknown'
+    assert state_after_answer(diagnostics) == DialogueState.LEAD_OFFERED
+
+
 def test_archive_size_limit(tmp_path):
     archive = tmp_path / 'kb.zip'
     with zipfile.ZipFile(archive, 'w') as z:
