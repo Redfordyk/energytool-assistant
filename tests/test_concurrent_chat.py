@@ -12,8 +12,8 @@ from app import main, security
 from app.database import make_engine, messages
 
 
-def test_fifty_unrelated_session_locks_do_not_block_each_other():
-    session_count = 50
+def test_hundred_unrelated_session_locks_do_not_block_each_other():
+    session_count = 100
     rendezvous = threading.Barrier(session_count)
 
     def enter_session(index):
@@ -28,8 +28,8 @@ def test_fifty_unrelated_session_locks_do_not_block_each_other():
 @pytest.mark.skipif(
     not os.getenv('TEST_DATABASE_URL'), reason='PostgreSQL test database not configured'
 )
-def test_fifty_simultaneous_chats_respect_capacity_without_partial_writes(monkeypatch):
-    request_count = 50
+def test_hundred_simultaneous_chats_respect_capacity_without_partial_writes(monkeypatch):
+    request_count = 100
     chat_capacity = 4
     engine = make_engine(os.environ['TEST_DATABASE_URL'])
     monkeypatch.setattr(main, 'engine', engine)
