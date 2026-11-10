@@ -131,3 +131,18 @@ fallback. The session was closed after the check. The embedding endpoint
 receives knowledge chunks and search queries to create vectors; generation and
 claim verification remain on DeepSeek. This one smoke request verifies wiring,
 not answer accuracy or retrieval KPI targets, and no reranker is configured.
+
+## Admin lead inbox deployment — 2026-11-10
+
+PR #48 (`2e18c17`) added an admin-only paginated inbox for consented leads;
+reviewers cannot read contact fields. Successful inbox reads write list and
+per-lead audit events without copying PII. The E2E suite verifies reviewer
+denial and safe rendering of user-supplied HTML-shaped text. CI passed both
+workflow runs, and the full local suite reported 829 passed and 5 skipped.
+
+The release `/opt/energytool-assistant/releases/2e18c17` is active. Deployment
+reused the existing environment file, data directory, and PostgreSQL volumes;
+no schema migration or database restart was needed. Live checks returned
+`/admin` HTTP 200 with the new lead queue, `/health/ready` ready, unauthenticated
+lead access 401, reviewer access 403, and admin access 200. The queue contained
+zero confirmed leads during validation. No contact values were printed.
