@@ -12,5 +12,12 @@ def test_deterministic_tariff_question_enters_clarification():
     )
 
 
+def test_customer_requested_escalation_enters_lead_offer():
+    assert (
+        state_after_answer({'query_plan': 'deterministic_escalation_offer'})
+        == DialogueState.LEAD_OFFERED
+    )
+
+
 def test_unclassified_answers_stay_in_consulting():
     assert state_after_answer({}) == DialogueState.CONSULTING

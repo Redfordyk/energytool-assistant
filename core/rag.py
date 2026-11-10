@@ -20,6 +20,11 @@ import httpx
 from core.hybrid import RETRIEVAL_ERRORS, bounded_timeout, fuse, rerank, semantic_rank
 
 FALLBACK = 'Не могу достоверно ответить по доступной базе знаний. Уточните задачу или обратитесь к специалисту.'
+ESCALATION_OFFER = (
+    'Могу подготовить заявку специалисту. Заполните форму «Заявка специалисту», '
+    'проверьте данные и подтвердите согласие перед сохранением. '
+    'В демонстрационном режиме заявка сохраняется в системе, но специалистам не отправляется.'
+)
 
 
 def json_mode_enabled():
@@ -205,6 +210,32 @@ def transcript_user_turns(question):
     # Earlier user turns often carry the topic that a short final question
     # refers to. Keep a bounded window; assistant wording is never user context.
     return [turn[-1000:] for turn in user_turns[-4:]]
+
+
+_ESCALATION_REQUEST = re.compile(
+    r'\b(?:хочу|нужен|нужна|нужно|позовите|соедините|свяжите|передайте|переведите|'
+    r'вызовите|пригласите)\b.{0,60}?\b(?:менеджер\w*|специалист\w*|эксперт\w*|'
+    r'оператор\w*|человек\w*)\b|'
+    r'\b(?:хочу|можно|дайте|помогите)\b.{0,45}?\b(?:поговорить|связаться|соединиться)\b'
+    r'.{0,35}?\b(?:менеджер\w*|специалист\w*|эксперт\w*|оператор\w*|человек\w*)\b',
+    re.IGNORECASE,
+)
+_ESCALATION_NEGATION = re.compile(
+    r'\b(?:не|нет|без)\s*$',
+    re.IGNORECASE,
+)
+
+
+def customer_requested_escalation(question):
+    """Detect a direct request for a person in the latest user turn only."""
+    user_turns = transcript_user_turns(question)
+    if not user_turns:
+        return False
+    latest = user_turns[-1].casefold().replace('ё', 'е')
+    return any(
+        not _ESCALATION_NEGATION.search(latest[: match.start()])
+        for match in _ESCALATION_REQUEST.finditer(latest)
+    )
 
 
 def retrieval_query(question):
@@ -580,6 +611,7 @@ def answer(question, chunks, history=(), diagnostics=None):
                 'total_latency_ms': 0,
                 'prompt_token_count': None,
                 'completion_token_count': None,
+                'escalation_reason': None,
             }
         )
     if re.fullmatch(
@@ -593,6 +625,12 @@ def answer(question, chunks, history=(), diagnostics=None):
             'Здравствуйте! Расскажите, какую задачу в области энергетики вы хотите решить?'
         )
     question_user_turns = transcript_user_turns(question)
+    if customer_requested_escalation(question):
+        if diagnostics is not None:
+            diagnostics['intent'] = 'customer_requested_escalation'
+            diagnostics['query_plan'] = 'deterministic_escalation_offer'
+            diagnostics['escalation_reason'] = 'customer_requested'
+        return finish(ESCALATION_OFFER)
     is_transcript = bool(
         question_user_turns and (len(question_user_turns) > 1 or question_user_turns[0] != question)
     )

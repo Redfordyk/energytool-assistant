@@ -20,6 +20,8 @@ class DialogueState(StrEnum):
 
 def state_after_answer(diagnostics: Mapping[str, object]) -> DialogueState:
     """Derive only states the current deterministic router can prove."""
+    if diagnostics.get('query_plan') == 'deterministic_escalation_offer':
+        return DialogueState.LEAD_OFFERED
     if diagnostics.get('query_plan') == 'deterministic_greeting':
         return DialogueState.DISCOVERY
     if diagnostics.get('query_plan') == 'clarify_missing_tariff_input':
