@@ -18,6 +18,8 @@ These tests exercise production validators directly; they are functional unit co
 
 Direct requests to speak with a specialist are routed without retrieval or an LLM call. Unanswerable and conflicting evidence also produce a typed escalation offer in the trace (`insufficient_knowledge`, `pricing_unknown`, or `complex_case`). The session enters `LEAD_OFFERED`; drafting and cancellation preserve that return state, and no lead is stored until the user confirms consent. Explicit negation and assistant text inside supplied transcripts do not trigger a direct-request route.
 
+The retrieval outage contract makes embedding and reranker HTTP failures degrade to BM25 while preserving claim verification. It does not cover prolonged provider outages or measure the retrieval quality lost during degraded operation.
+
 Run the complete suite, including browser E2E, with:
 
 ```powershell
