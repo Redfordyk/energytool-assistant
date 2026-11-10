@@ -21,6 +21,7 @@ The threat model is defined by SEC-01 through SEC-20 in the technical specificat
 | SEC-15 Resource consumption | `test_http_rate_limit_and_readiness`; `test_overloaded_chat_rejects_without_recording_message` | Request caps and overload behavior are covered; production load targets need separate measurement. |
 | SEC-16 SSRF | Answer-contract gateway tests | No arbitrary fetch/tool route exists; tests do not probe a live internal network. |
 | SEC-17 Duplicate lead | `test_sessions_and_lead_confirmation`; PostgreSQL idempotency test | Repeated confirmation with the same key yields one lead. |
+| Lead contact access | `test_admin_lead_inbox_is_audited_and_hides_contacts_from_reviewer` | Only admin can read confirmed lead contacts; reviewer is denied, pagination is bounded, and list/lead IDs are audited without copying PII. |
 | SEC-18 Memory poisoning | `test_100_multistep_sessions_do_not_share_context_or_authority` | 100 scenarios verify no cross-session memory or context. |
 | SEC-19 Model output injection | `test_answer_rejects_unanswerable_or_invalid_claim_payloads` | Extra fields, bad citations, and unsupported claims fail closed. |
 | SEC-20 Unauthorized index swap | `test_knowledge_lifecycle_and_access` | Archive tampering invalidates the active revision. |
