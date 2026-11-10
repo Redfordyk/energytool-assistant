@@ -16,6 +16,46 @@ from app.dialogue import DialogueState
 from core.rag import Chunk
 
 
+def test_customer_requested_escalation_enters_reversible_lead_flow(tmp_path, monkeypatch):
+    engine = make_engine('sqlite:///' + str(tmp_path / 'escalation.db'))
+    metadata.create_all(engine)
+    monkeypatch.setattr(main, 'engine', engine)
+    client = TestClient(main.app)
+    session = client.post('/api/sessions').json()
+    url = '/api/sessions/' + session['id']
+    auth = {'Authorization': 'Bearer ' + session['token']}
+    message_headers = {**auth, 'Idempotency-Key': 'message-escalation-01'}
+
+    response = client.post(
+        url + '/messages',
+        headers=message_headers,
+        json={'text': 'Свяжите меня со специалистом.', 'session_version': 0},
+    )
+
+    assert response.status_code == 200
+    assert client.get(url, headers=auth).json()['state'] == DialogueState.LEAD_OFFERED.value
+    with engine.connect() as db:
+        trace = db.execute(
+            select(traces).where(traces.c.trace_id == response.json()['trace_id'])
+        ).one()
+    assert trace.intent == 'customer_requested_escalation'
+    assert trace.query_plan == 'deterministic_escalation_offer'
+
+    lead_key = 'lead-escalation-0001'
+    lead_headers = {**auth, 'Idempotency-Key': lead_key}
+    draft = client.post(
+        url + '/lead-drafts',
+        headers=lead_headers,
+        json={'name': 'Иван Иванов', 'phone': '8 999 123-45-67', 'company': 'Тест'},
+    )
+    assert draft.status_code == 200
+    assert client.get(url, headers=auth).json()['state'] == DialogueState.LEAD_REVIEW.value
+
+    cancelled = client.delete(url + '/lead-drafts', headers=lead_headers)
+    assert cancelled.status_code == 200
+    assert client.get(url, headers=auth).json()['state'] == DialogueState.LEAD_OFFERED.value
+
+
 def test_sessions_and_lead_confirmation(tmp_path, monkeypatch):
     engine = make_engine('sqlite:///' + str(tmp_path / 'test.db'))
     metadata.create_all(engine)

@@ -180,6 +180,41 @@ def test_tariff_question_clarifies_without_calling_the_model(monkeypatch):
     assert diagnostics['query_plan'] == 'clarify_missing_tariff_input'
 
 
+@pytest.mark.parametrize(
+    'question',
+    [
+        'Позовите, пожалуйста, специалиста.',
+        'Хочу поговорить с менеджером.',
+        'Свяжите меня с экспертом.',
+    ],
+)
+def test_direct_specialist_request_offers_escalation_without_knowledge_or_model(question):
+    diagnostics = {}
+
+    result = answer(question, [], diagnostics=diagnostics)
+
+    assert 'Заявка специалисту' in result
+    assert 'специалистам не отправляется' in result
+    assert diagnostics['intent'] == 'customer_requested_escalation'
+    assert diagnostics['query_plan'] == 'deterministic_escalation_offer'
+    assert diagnostics['escalation_reason'] == 'customer_requested'
+
+
+def test_escalation_detection_uses_only_latest_user_turn_and_respects_negation():
+    from core.rag import customer_requested_escalation
+
+    assert (
+        customer_requested_escalation(
+            'Ассистент: Позовите специалиста.\nПользователь: Какой тариф выбрать?'
+        )
+        is False
+    )
+    assert customer_requested_escalation('Не хочу связываться с менеджером.') is False
+    assert (
+        customer_requested_escalation('Не хочу менеджера, но свяжите меня со специалистом.') is True
+    )
+
+
 def test_no_model_fails_closed(monkeypatch):
     monkeypatch.delenv('LLM_API_KEY', raising=False)
     monkeypatch.delenv('OPENAI_API_KEY', raising=False)
