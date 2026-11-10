@@ -21,7 +21,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.database import (
     audit,
     knowledge,
+    lead_consents,
+    lead_contexts,
     lead_drafts,
+    leads,
     make_engine,
     message_requests,
     messages,
@@ -445,6 +448,53 @@ def knowledge_list(role: str = Depends(require_role)):
             db.execute(select(knowledge).order_by(knowledge.c.created_at.desc())).mappings().all()
         )
     return [dict(row) for row in rows]
+
+
+@app.get('/api/admin/leads')
+def admin_lead_list(
+    role: str = Depends(require_role),
+    before_id: int = Query(default=0, ge=0),
+    limit: int = Query(default=25, ge=1, le=100),
+):
+    require_admin(role)
+    statement = (
+        select(
+            leads.c.id,
+            leads.c.session_id,
+            leads.c.name,
+            leads.c.phone,
+            leads.c.company,
+            lead_contexts.c.summary,
+            lead_contexts.c.knowledge_revision,
+            lead_consents.c.purpose.label('consent_purpose'),
+            lead_consents.c.confirmed_at,
+        )
+        .select_from(
+            leads.join(lead_contexts, lead_contexts.c.lead_id == leads.c.id).join(
+                lead_consents, lead_consents.c.lead_id == leads.c.id
+            )
+        )
+        .order_by(leads.c.id.desc())
+        .limit(limit)
+    )
+    if before_id:
+        statement = statement.where(leads.c.id < before_id)
+    with engine.begin() as db:
+        result = db.execute(statement).mappings().all()
+        db.execute(
+            insert(audit).values(
+                action='lead.list', actor=role, subject=f'before:{before_id};limit:{limit}'
+            )
+        )
+        if result:
+            db.execute(
+                insert(audit),
+                [
+                    {'action': 'lead.review', 'actor': role, 'subject': str(row['id'])}
+                    for row in result
+                ],
+            )
+    return [dict(row) for row in result]
 
 
 @app.get('/api/admin/traces/{trace_id}')

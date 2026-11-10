@@ -142,7 +142,7 @@ def test_review_and_save_lead_in_browser(tmp_path):
             expect(page.locator('#status')).to_contain_text('Трасса: ')
             trace_id = page.locator('#status').inner_text().split('Трасса: ', 1)[1]
             page.goto(url + '/admin')
-            expect(page.get_by_role('heading', name='База знаний')).to_be_visible()
+            expect(page.get_by_role('heading', name='Рабочая панель')).to_be_visible()
             expect(page.locator('link[href="/assets/tokens.css"]')).to_have_count(1)
             assert (
                 page.locator('.admin-card').first.evaluate(
@@ -163,14 +163,27 @@ def test_review_and_save_lead_in_browser(tmp_path):
             page.goto(url)
             page.locator('#name').fill('Тестовый Клиент')
             page.locator('#phone').fill('8 999 123-45-67')
-            page.locator('#company').fill('Тестовая компания')
+            page.locator('#company').fill('Тестовая <img src=x onerror="window.__xss=1">')
             page.get_by_role('button', name='Проверить заявку').click()
             page.locator('#preview').wait_for(state='visible')
             assert '+79991234567' in page.locator('#preview-text').inner_text()
-            assert 'Тестовая компания' in page.locator('#preview-text').inner_text()
+            assert (
+                '<img src=x onerror="window.__xss=1">' in page.locator('#preview-text').inner_text()
+            )
             page.locator('#consent').check()
             page.locator('#confirm').click()
             page.get_by_role('status').get_by_text('Заявка сохранена.').wait_for()
+            page.goto(url + '/admin')
+            page.locator('#token').fill('e2e-reviewer-secret')
+            page.get_by_role('button', name='Загрузить заявки').click()
+            expect(page.locator('#leads-status')).to_contain_text('Недостаточно прав')
+            expect(page.locator('.lead-inbox-item')).to_have_count(0)
+            page.locator('#token').fill('e2e-admin-secret')
+            page.get_by_role('button', name='Загрузить заявки').click()
+            expect(page.locator('.lead-inbox-item')).to_contain_text('Тестовый Клиент')
+            expect(page.locator('.lead-inbox-item')).to_contain_text('+79991234567')
+            expect(page.locator('#lead-queue img, #lead-queue script')).to_have_count(0)
+            assert page.evaluate('window.__xss || null') is None
             browser.close()
     finally:
         server.terminate()

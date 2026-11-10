@@ -1,5 +1,73 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Управление базой знаний</title>
-<link rel="stylesheet" href="/assets/tokens.css"><link rel="stylesheet" href="/assets/admin.css"></head>
-<body><main class="admin-shell"><a class="back-link" href="/">← Вернуться в чат</a><header class="admin-heading"><p class="admin-eyebrow">ENERGYTOOL · УПРАВЛЕНИЕ</p><h1>База знаний</h1><p>Зарегистрируйте архив, проверьте его происхождение и содержимое, затем утвердите и активируйте версию.</p></header><section class="admin-card" aria-labelledby="access-title"><h2 id="access-title">Доступ и регистрация</h2><label for="token">Токен администратора или проверяющего</label><input id="token" type="password" autocomplete="off" placeholder="Вставьте токен доступа"><div class="admin-actions"><button id="load" class="button button-secondary" type="button">Открыть реестр</button><button id="register" class="button button-primary" type="button">Зарегистрировать архив</button></div><p id="status" class="admin-status" role="status" aria-live="polite"></p></section><section class="admin-card" aria-labelledby="versions-title"><div class="card-heading"><div><p class="admin-eyebrow">ВЕРСИОНИРОВАНИЕ</p><h2 id="versions-title">Версии базы знаний</h2></div><span class="card-icon" aria-hidden="true">▤</span></div><div id="versions" class="version-list" aria-live="polite"></div></section><section class="admin-card" aria-labelledby="trace-title"><div class="card-heading"><div><p class="admin-eyebrow">ДИАГНОСТИКА</p><h2 id="trace-title">Отладочная трасса</h2></div><span class="card-icon" aria-hidden="true">⌁</span></div><label for="trace-id">Идентификатор трассы из ответа чата</label><div class="trace-actions"><input id="trace-id" autocomplete="off" maxlength="64" placeholder="Например, 7af3…"><button id="load-trace" class="button button-secondary" type="button">Открыть трассу</button></div><pre id="trace-output" class="trace-output" role="status" aria-live="polite"></pre></section><p class="admin-footnote">Изменения базы знаний влияют на ответы консультанта после активации.</p></main>
-<script src="/assets/admin.js" defer></script></body></html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Управление Energytool</title>
+    <link rel="stylesheet" href="/assets/tokens.css">
+    <link rel="stylesheet" href="/assets/admin.css">
+  </head>
+  <body>
+    <main class="admin-shell">
+      <a class="back-link" href="/">← Вернуться в чат</a>
+      <header class="admin-heading">
+        <p class="admin-eyebrow">ENERGYTOOL · УПРАВЛЕНИЕ</p>
+        <h1>Рабочая панель</h1>
+        <p>Управление базой знаний, заявками пользователей и диагностикой ответов.</p>
+      </header>
+      <section class="admin-card" aria-labelledby="access-title">
+        <h2 id="access-title">Доступ и регистрация</h2>
+        <label for="token">Токен администратора или проверяющего</label>
+        <input id="token" type="password" autocomplete="off" placeholder="Вставьте токен доступа">
+        <div class="admin-actions">
+          <button id="load" class="button button-secondary" type="button">Открыть реестр БЗ</button>
+          <button id="register" class="button button-primary" type="button">Зарегистрировать архив</button>
+        </div>
+        <p id="status" class="admin-status" role="status" aria-live="polite"></p>
+      </section>
+      <section class="admin-card" aria-labelledby="versions-title">
+        <div class="card-heading">
+          <div>
+            <p class="admin-eyebrow">ВЕРСИОНИРОВАНИЕ</p>
+            <h2 id="versions-title">Версии базы знаний</h2>
+          </div>
+          <span class="card-icon" aria-hidden="true">▤</span>
+        </div>
+        <div id="versions" class="version-list" aria-live="polite"></div>
+      </section>
+      <section class="admin-card" aria-labelledby="leads-title">
+        <div class="card-heading">
+          <div>
+            <p class="admin-eyebrow">ОБРАЩЕНИЯ</p>
+            <h2 id="leads-title">Подтверждённые заявки</h2>
+          </div>
+          <span class="card-icon" aria-hidden="true">♙</span>
+        </div>
+        <p class="admin-status">Контактные данные видны только администратору. Просмотр очереди записывается в аудит.</p>
+        <div class="admin-actions">
+          <button id="load-leads" class="button button-secondary" type="button">Загрузить заявки</button>
+          <button id="load-more-leads" class="button button-secondary" type="button" hidden>Показать более ранние</button>
+        </div>
+        <p id="leads-status" class="admin-status" role="status" aria-live="polite"></p>
+        <div id="lead-queue" class="lead-queue" aria-live="polite"></div>
+      </section>
+      <section class="admin-card" aria-labelledby="trace-title">
+        <div class="card-heading">
+          <div>
+            <p class="admin-eyebrow">ДИАГНОСТИКА</p>
+            <h2 id="trace-title">Отладочная трасса</h2>
+          </div>
+          <span class="card-icon" aria-hidden="true">⌁</span>
+        </div>
+        <label for="trace-id">Идентификатор трассы из ответа чата</label>
+        <div class="trace-actions">
+          <input id="trace-id" autocomplete="off" maxlength="64" placeholder="Например, 7af3…">
+          <button id="load-trace" class="button button-secondary" type="button">Открыть трассу</button>
+        </div>
+        <pre id="trace-output" class="trace-output" role="status" aria-live="polite"></pre>
+      </section>
+      <p class="admin-footnote">Изменения базы знаний влияют на ответы консультанта после активации.</p>
+    </main>
+    <script src="/assets/admin.js" defer></script>
+  </body>
+</html>
