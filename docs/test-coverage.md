@@ -14,7 +14,7 @@
 
 These tests exercise production validators directly; they are functional unit contracts, not 500 browser or full-dialogue runs. The red-team suite separately contains 100 two-session multi-step scenarios and 350 adversarial cases. API-level lead confirmation, duplicate prevention, knowledge approval, session versioning, and browser workflows remain covered by their dedicated tests.
 
-`tests/test_concurrent_chat.py` additionally opens 50 unrelated session locks together and, with PostgreSQL plus a deterministic blocked model stub, sends 50 concurrent chats. It verifies the configured four-chat capacity, 46 overload responses, and that rejected requests write no message rows. This is an overload-control contract, not a sustained 50-user latency or model throughput benchmark.
+`tests/test_concurrent_chat.py` additionally opens 100 unrelated session locks together and, with PostgreSQL plus a deterministic blocked model stub, sends 100 concurrent chats. It verifies the configured four-chat capacity, 96 overload responses, and that rejected requests write no message rows. This is an overload-control contract, not a sustained 100-user latency or model throughput benchmark.
 
 Direct requests to speak with a specialist are routed without retrieval or an LLM call. Unanswerable and conflicting evidence also produce a typed escalation offer in the trace (`insufficient_knowledge`, `pricing_unknown`, or `complex_case`). The session enters `LEAD_OFFERED`; drafting and cancellation preserve that return state, and no lead is stored until the user confirms consent. Explicit negation and assistant text inside supplied transcripts do not trigger a direct-request route.
 
