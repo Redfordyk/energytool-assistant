@@ -150,3 +150,19 @@ no schema migration or database restart was needed. Live checks returned
 `/admin` HTTP 200 with the new lead queue, `/health/ready` ready, unauthenticated
 lead access 401, reviewer access 403, and admin access 200. The queue contained
 zero confirmed leads during validation. No contact values were printed.
+
+## Session lock contention fix deployment — 2026-11-10
+
+PR #50 (`c70cc8c`) replaced the 64-slot striped session lock table with a
+ref-counted per-session lock pool. This preserves serialization for requests
+within one conversation while preventing unrelated sessions from waiting on
+hash collisions. CI passed both workflow runs, including the PostgreSQL burst
+contract; the full local suite reported 835 passed and 1 skipped.
+
+Release `/opt/energytool-assistant/releases/c70cc8c` is active. Deployment
+reused the existing server environment, data directory, and PostgreSQL
+container. The app was rebuilt and recreated; PostgreSQL remained healthy.
+Public `/health/ready` returned `{"status":"ready"}` and `/admin` returned
+HTTP 200. This verifies release health, not 50-user sustained throughput,
+100-user capacity, model-backed latency, or outage recovery; those remain
+unmeasured acceptance work.
