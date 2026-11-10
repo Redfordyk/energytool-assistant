@@ -166,3 +166,21 @@ Public `/health/ready` returned `{"status":"ready"}` and `/admin` returned
 HTTP 200. This verifies release health, not 50-user sustained throughput,
 100-user capacity, model-backed latency, or outage recovery; those remain
 unmeasured acceptance work.
+
+## Specialist escalation and typed fallback deployment — 2026-11-10
+
+PR #52 added a deterministic route for a direct request to speak with a
+specialist. PR #53 added a consent-based lead offer when evidence is missing,
+pricing is unknown, or retrieved sources conflict. These paths do not convert
+an unsupported answer into a claim; saving a lead still requires review and
+explicit consent. CI passed both workflows; the full local E2E-enabled suite
+reported 837 passed and 6 skipped.
+
+Release `/opt/energytool-assistant/releases/fab2094` is active. Alembic is at
+revision `0009`, which stores the escalation reason on request traces. The
+PostgreSQL container remained healthy; public `/health/ready` returned ready
+and `/admin` returned HTTP 200. A synthetic direct specialist request returned
+HTTP 200, entered `LEAD_OFFERED`, recorded `customer_requested` in its trace,
+and was closed without creating a lead. After the app container was
+recreated, the OpenAI embedding endpoint returned HTTP 200 with 1536
+dimensions. Neither API secret was exposed in command output.
