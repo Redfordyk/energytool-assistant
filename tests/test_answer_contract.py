@@ -81,6 +81,46 @@ def test_answer_uses_lexical_fallback_when_retrieval_services_are_not_configured
     assert gateway.chat_calls == 2
 
 
+@pytest.mark.parametrize(
+    ('endpoint_variable', 'endpoint', 'expected_diagnostic', 'expected_value'),
+    [
+        ('EMBEDDER_BASE_URL', 'https://embedder.test/v1', 'query_plan', 'bm25'),
+        ('RERANKER_BASE_URL', 'https://reranker.test/v1', 'reranker', 'unavailable'),
+    ],
+)
+def test_retrieval_service_outage_degrades_to_verified_bm25_answer(
+    monkeypatch, gateway_env, endpoint_variable, endpoint, expected_diagnostic, expected_value
+):
+    response = json.dumps(
+        {
+            'claims': [
+                {
+                    'text': 'Срок поставки — 10 дней при согласовании.',
+                    'source': 1,
+                    'quote': 'Срок поставки составляет 10 дней при согласовании.',
+                }
+            ]
+        },
+        ensure_ascii=False,
+    )
+    monkeypatch.setenv(endpoint_variable, endpoint)
+    gateway = ModelGatewayStub(response, '{"supported":[true]}')
+    install_gateway(monkeypatch, gateway)
+    diagnostics = {}
+
+    result = answer(
+        'срок поставки',
+        [Chunk('terms.md', 'Срок поставки составляет 10 дней при согласовании.')],
+        diagnostics=diagnostics,
+    )
+
+    assert result == 'Срок поставки — 10 дней при согласовании.'
+    assert diagnostics[expected_diagnostic] == expected_value
+    assert diagnostics['claim_verification'] is True
+    assert diagnostics['fallback_reason'] is None
+    assert gateway.chat_calls == 2
+
+
 def test_answer_binds_server_evidence_when_model_returns_source_only(monkeypatch, gateway_env):
     source_text = 'Срок поставки составляет 10 дней при согласовании.'
     response = json.dumps(
