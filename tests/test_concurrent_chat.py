@@ -1,8 +1,8 @@
 import asyncio
-from contextlib import AsyncExitStack
-from concurrent.futures import ThreadPoolExecutor
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import AsyncExitStack
 
 import httpx
 import pytest
