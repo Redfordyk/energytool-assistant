@@ -6,7 +6,7 @@ import secrets
 import threading
 import time
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -80,7 +80,45 @@ async def lifespan(_app):
 app = FastAPI(title='Energytool consultant', lifespan=lifespan)
 app.add_middleware(RequestGuard, engine_provider=lambda: engine)
 app.mount('/assets', StaticFiles(directory=Path(__file__).with_name('static')), name='assets')
-SESSION_LOCKS = tuple(threading.Lock() for _ in range(64))
+
+
+class _SessionLockEntry:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.users = 0
+
+
+class _SessionLockPool:
+    """Serialize work per session without blocking unrelated sessions."""
+
+    def __init__(self):
+        self._guard = threading.Lock()
+        self._entries = {}
+
+    @contextmanager
+    def hold(self, session_id):
+        with self._guard:
+            entry = self._entries.get(session_id)
+            if entry is None:
+                entry = _SessionLockEntry()
+                self._entries[session_id] = entry
+            entry.users += 1
+
+        acquired = False
+        try:
+            entry.lock.acquire()
+            acquired = True
+            yield
+        finally:
+            if acquired:
+                entry.lock.release()
+            with self._guard:
+                entry.users -= 1
+                if entry.users == 0:
+                    del self._entries[session_id]
+
+
+SESSION_LOCKS = _SessionLockPool()
 CHAT_SLOTS = threading.BoundedSemaphore(4)
 
 
@@ -90,8 +128,7 @@ async def database_error(_request, _exc):
 
 
 def session_lock(session_id):
-    index = int.from_bytes(hashlib.sha256(session_id.encode()).digest()[:4], 'big')
-    return SESSION_LOCKS[index % len(SESSION_LOCKS)]
+    return SESSION_LOCKS.hold(session_id)
 
 
 def authorize(session_id, authorization):

@@ -46,9 +46,13 @@ returned trace IDs, and none returned the safe fallback. Measured HTTP latency:
 This small synthetic sample meets the 8 s p95 target for that run only. A
 separate 10-request sample had a 10.07 s p95, demonstrating external model
 latency variation. TTFT is unavailable because streaming is not implemented.
-The 50/100-concurrent-session and outage/chaos targets remain untested; the
-current 1 vCPU / 2 GB test host and API rate limits do not establish those
-capacity targets.
+An isolated PostgreSQL test now sends 50 synthetic chats simultaneously with
+a deterministic blocked model stub: four enter the configured chat capacity,
+and the remaining 46 receive 503 without message writes. This verifies the
+overload guard, not sustained 50-user throughput or latency. A 100-user test,
+model-backed concurrent load, and outage/chaos tests remain unmeasured; the
+current 1 vCPU / 2 GB VPS and API rate limits do not establish those capacity
+targets.
 
 ## Organizer demo and retrieval regression
 

@@ -14,6 +14,8 @@
 
 These tests exercise production validators directly; they are functional unit contracts, not 500 browser or full-dialogue runs. The red-team suite separately contains 100 two-session multi-step scenarios and 350 adversarial cases. API-level lead confirmation, duplicate prevention, knowledge approval, session versioning, and browser workflows remain covered by their dedicated tests.
 
+`tests/test_concurrent_chat.py` additionally opens 50 unrelated session locks together and, with PostgreSQL plus a deterministic blocked model stub, sends 50 concurrent chats. It verifies the configured four-chat capacity, 46 overload responses, and that rejected requests write no message rows. This is an overload-control contract, not a sustained 50-user latency or model throughput benchmark.
+
 Run the complete suite, including browser E2E, with:
 
 ```powershell

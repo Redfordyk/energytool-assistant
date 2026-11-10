@@ -18,7 +18,7 @@ The threat model is defined by SEC-01 through SEC-20 in the technical specificat
 | SEC-12 Prompt disclosure | Poisoned-document variants | A rejected claim cannot reveal prompt text in the mock; live-model resistance is not measured. |
 | SEC-13 XSS / HTML / Markdown | `test_http_security_headers_and_body_limit`; browser E2E | A malicious assistant response is rendered as literal text; no image or script node executes. |
 | SEC-14 Cross-session access | `test_100_multistep_sessions_do_not_share_context_or_authority` | 100 cross-token history reads return 404 without message contents. |
-| SEC-15 Resource consumption | `test_http_rate_limit_and_readiness`; `test_overloaded_chat_rejects_without_recording_message` | Request caps and overload behavior are covered; production load targets need separate measurement. |
+| SEC-15 Resource consumption | `test_http_rate_limit_and_readiness`; `test_overloaded_chat_rejects_without_recording_message`; `test_fifty_simultaneous_chats_respect_capacity_without_partial_writes` | The 50-chat PostgreSQL contract admits four calls and rejects the rest without partial writes. It does not measure sustained model throughput or production p95 under 50/100 users. |
 | SEC-16 SSRF | Answer-contract gateway tests | No arbitrary fetch/tool route exists; tests do not probe a live internal network. |
 | SEC-17 Duplicate lead | `test_sessions_and_lead_confirmation`; PostgreSQL idempotency test | Repeated confirmation with the same key yields one lead. |
 | Lead contact access | `test_admin_lead_inbox_is_audited_and_hides_contacts_from_reviewer` | Only admin can read confirmed lead contacts; reviewer is denied, pagination is bounded, and list/lead IDs are audited without copying PII. |
